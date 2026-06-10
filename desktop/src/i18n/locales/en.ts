@@ -444,7 +444,9 @@ export const en = {
 
   // Settings > Adapters
   'settings.tab.adapters': 'IM Adapters',
-  'settings.adapters.description': 'Configure IM adapters to chat with Claude Code via WeChat, DingTalk, WhatsApp, Telegram, or Feishu.',
+  'settings.adapters.description': 'Configure IM adapters to chat with Claude Code via Telegram, WeChat, DingTalk, WhatsApp, or Feishu. For setup details, see',
+  'settings.adapters.configurationDocs': 'documentation link',
+  'settings.adapters.descriptionAfterDocs': '.',
   'settings.adapters.telegram': 'Telegram',
   'settings.adapters.feishu': 'Feishu',
   'settings.adapters.wechat': 'WeChat',

@@ -446,7 +446,9 @@ export const zh: Record<TranslationKey, string> = {
 
   // Settings > Adapters
   'settings.tab.adapters': 'IM 接入',
-  'settings.adapters.description': '配置即时通讯适配器，通过微信、钉钉、WhatsApp、Telegram 或飞书与 Claude Code 对话。',
+  'settings.adapters.description': '配置即时通讯适配器，通过 Telegram、微信、钉钉、WhatsApp 或飞书与 Claude Code 对话。首次配置请参考',
+  'settings.adapters.configurationDocs': '文档地址',
+  'settings.adapters.descriptionAfterDocs': '。',
   'settings.adapters.telegram': 'Telegram',
   'settings.adapters.feishu': '飞书',
   'settings.adapters.wechat': '微信',

@@ -446,7 +446,9 @@ export const jp: Record<TranslationKey, string> = {
 
   // Settings > Adapters
   'settings.tab.adapters': 'IM アダプター',
-  'settings.adapters.description': 'WeChat、DingTalk、WhatsApp、Telegram、Feishu 経由で Claude Code とチャットできるよう IM アダプターを設定します。',
+  'settings.adapters.description': 'Telegram、WeChat、DingTalk、WhatsApp、Feishu 経由で Claude Code とチャットできるよう IM アダプターを設定します。詳しい設定手順は',
+  'settings.adapters.configurationDocs': 'ドキュメントリンク',
+  'settings.adapters.descriptionAfterDocs': 'を参照してください。',
   'settings.adapters.telegram': 'Telegram',
   'settings.adapters.feishu': 'Feishu',
   'settings.adapters.wechat': 'WeChat',

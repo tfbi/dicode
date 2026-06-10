@@ -7,11 +7,12 @@ import { DirectoryPicker } from '../components/shared/DirectoryPicker'
 import { ConfirmDialog } from '../components/shared/ConfirmDialog'
 import QRCode from 'qrcode'
 
-type ImTab = 'feishu' | 'wechat' | 'dingtalk' | 'whatsapp' | 'telegram'
+type ImTab = 'telegram' | 'feishu' | 'wechat' | 'dingtalk' | 'whatsapp'
 type ImPlatform = 'telegram' | 'feishu' | 'wechat' | 'dingtalk' | 'whatsapp'
 type AdapterUnbindTarget = 'wechatAccount' | 'dingtalkBot' | 'whatsappAccount'
 
 const FEISHU_CREATE_BOT_URL = 'https://open.feishu.cn/page/openclaw?form=multiAgent'
+const IM_CONFIG_DOCS_URL = 'https://claudecode-haha.relakkesyang.org/im/'
 
 export function AdapterSettings() {
   const t = useTranslation()
@@ -33,8 +34,8 @@ export function AdapterSettings() {
     unbindWhatsAppAccount,
   } = useAdapterStore()
 
-  // Active IM tab —— Feishu 默认展示，在前
-  const [activeIm, setActiveIm] = useState<ImTab>('feishu')
+  // Active IM tab
+  const [activeIm, setActiveIm] = useState<ImTab>('telegram')
 
   // Server —— serverUrl 不再暴露在 UI 里（见下方 Server URL 注释），
   // 桌面端用 sidecar env var 注入动态端口。
@@ -498,7 +499,19 @@ export function AdapterSettings() {
     <div className="max-w-2xl space-y-8">
       {/* Description */}
       <div>
-        <p className="text-sm text-[var(--color-text-secondary)]">{t('settings.adapters.description')}</p>
+        <p className="text-sm leading-6 text-[var(--color-text-secondary)]">
+          {t('settings.adapters.description')}{' '}
+          <a
+            href={IM_CONFIG_DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 font-medium text-[var(--color-brand)] transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]"
+          >
+            {t('settings.adapters.configurationDocs')}
+            <span className="material-symbols-outlined text-[14px]" aria-hidden="true">open_in_new</span>
+          </a>
+          {t('settings.adapters.descriptionAfterDocs')}
+        </p>
       </div>
 
       {/* Pairing */}
@@ -587,9 +600,14 @@ export function AdapterSettings() {
         </p>
       </div>
 
-      {/* IM Adapter Tabs —— Feishu 默认在前，Telegram 在后 */}
+      {/* IM Adapter Tabs */}
       <section className="rounded-xl border border-[var(--color-border)] overflow-hidden">
         <div role="tablist" aria-label="IM adapter" className="flex items-stretch border-b border-[var(--color-border)] bg-[var(--color-surface-hover)]">
+          <ImTabButton
+            label={t('settings.adapters.telegram')}
+            active={activeIm === 'telegram'}
+            onClick={() => setActiveIm('telegram')}
+          />
           <ImTabButton
             label={t('settings.adapters.feishu')}
             active={activeIm === 'feishu'}
@@ -609,11 +627,6 @@ export function AdapterSettings() {
             label={t('settings.adapters.whatsapp')}
             active={activeIm === 'whatsapp'}
             onClick={() => setActiveIm('whatsapp')}
-          />
-          <ImTabButton
-            label={t('settings.adapters.telegram')}
-            active={activeIm === 'telegram'}
-            onClick={() => setActiveIm('telegram')}
           />
         </div>
 

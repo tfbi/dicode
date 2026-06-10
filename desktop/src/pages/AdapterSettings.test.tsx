@@ -8,6 +8,7 @@ import { useSettingsStore } from '../stores/settingsStore'
 import type { AdapterFileConfig } from '../types/adapter'
 
 const FEISHU_CREATE_BOT_URL = 'https://open.feishu.cn/page/openclaw?form=multiAgent'
+const IM_CONFIG_DOCS_URL = 'https://claudecode-haha.relakkesyang.org/im/'
 
 function renderAdapterSettings(
   config: AdapterFileConfig,
@@ -44,9 +45,25 @@ afterEach(() => {
   useSettingsStore.setState(useSettingsStore.getInitialState(), true)
 })
 
+describe('AdapterSettings IM setup entry', () => {
+  it('shows Telegram first by default and links to the unified documentation URL', () => {
+    renderAdapterSettings({})
+
+    const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent)
+    expect(tabs).toEqual(['Telegram', 'Feishu', 'WeChat', 'DingTalk', 'WhatsApp'])
+    expect(screen.getByRole('tab', { name: 'Telegram' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText('Bot Token')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'documentation link' })).toHaveAttribute(
+      'href',
+      IM_CONFIG_DOCS_URL,
+    )
+  })
+})
+
 describe('AdapterSettings Feishu onboarding', () => {
   it('shows the documented one-click Feishu bot link before credentials are configured', () => {
     renderAdapterSettings({})
+    fireEvent.click(screen.getByRole('tab', { name: 'Feishu' }))
 
     expect(screen.getByText('Need a Feishu bot?')).toBeInTheDocument()
     expect(screen.getByText(/OpenClaw template/)).toBeInTheDocument()
@@ -65,6 +82,7 @@ describe('AdapterSettings Feishu onboarding', () => {
         appSecret: '****cret',
       },
     })
+    fireEvent.click(screen.getByRole('tab', { name: 'Feishu' }))
 
     expect(screen.queryByRole('link', { name: /create feishu bot/i })).not.toBeInTheDocument()
     expect(screen.queryByText('Need a Feishu bot?')).not.toBeInTheDocument()
