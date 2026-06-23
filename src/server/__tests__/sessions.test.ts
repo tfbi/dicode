@@ -972,6 +972,16 @@ describe('SessionService', () => {
         timestamp: '2026-01-01T00:00:02.000Z',
         uuid: 'goal-output',
       },
+      {
+        parentUuid: 'goal-output',
+        isSidechain: false,
+        type: 'system',
+        subtype: 'local_command',
+        content: '<local-command-stdout>Goal continuing: verify persisted follow-up</local-command-stdout>',
+        level: 'info',
+        timestamp: '2026-01-01T00:00:03.000Z',
+        uuid: 'goal-continuing',
+      },
       makeAssistantEntry('正常助手消息', crypto.randomUUID()),
     ])
 
@@ -987,6 +997,11 @@ describe('SessionService', () => {
         id: 'goal-output',
         type: 'system',
         content: expect.stringContaining('Goal set: ship persisted goal'),
+      },
+      {
+        id: 'goal-continuing',
+        type: 'system',
+        content: expect.stringContaining('Goal continuing: verify persisted follow-up'),
       },
       {
         type: 'assistant',

@@ -1192,6 +1192,7 @@ export const jp: Record<TranslationKey, string> = {
   'chat.goalEvent.resumed': 'ゴールを再開しました',
   'chat.goalEvent.completed': 'ゴールを完了しました',
   'chat.goalEvent.cleared': 'ゴールをクリアしました',
+  'chat.goalEvent.continuing': 'ゴールを継続中',
   'chat.goalEvent.message': 'ゴールの更新',
   'chat.goalEvent.objective': '目標: {value}',
   'chat.goalEvent.statusValue': 'ステータス: {value}',

@@ -2719,6 +2719,13 @@ function parseGoalEventFromLocalCommandOutput(
   if (trimmed === 'Goal cleared.' || trimmed.startsWith('Goal cleared:')) return { action: 'cleared', message: trimmed }
   if (trimmed === 'Goal marked complete.') return { action: 'completed', message: trimmed }
   if (trimmed === 'No active goal.') return { action: 'message', message: trimmed }
+  if (trimmed.startsWith('Goal continuing:')) {
+    return {
+      action: 'status',
+      status: 'continuing',
+      message: trimmed,
+    }
+  }
   if (trimmed.startsWith('Goal set:')) {
     const objective = trimmed.slice('Goal set:'.length).trim()
     return {

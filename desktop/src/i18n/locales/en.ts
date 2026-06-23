@@ -1190,6 +1190,7 @@ export const en = {
   'chat.goalEvent.resumed': 'Goal resumed',
   'chat.goalEvent.completed': 'Goal completed',
   'chat.goalEvent.cleared': 'Goal cleared',
+  'chat.goalEvent.continuing': 'Goal continuing',
   'chat.goalEvent.message': 'Goal update',
   'chat.goalEvent.objective': 'Objective: {value}',
   'chat.goalEvent.statusValue': 'Status: {value}',

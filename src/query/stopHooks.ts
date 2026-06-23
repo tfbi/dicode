@@ -78,6 +78,19 @@ export function shouldLetGoalPromptHookContinue(
   )
 }
 
+export function formatGoalContinuationStatusOutput(reason: string): string {
+  const normalizedReason = reason
+    .replace(/^Prompt hook condition was not met:\s*/i, '')
+    .replace(/[<>&]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 240)
+
+  return normalizedReason
+    ? `Goal continuing: ${normalizedReason}`
+    : 'Goal continuing: more work is required'
+}
+
 export async function* handleStopHooks(
   messagesForQuery: Message[],
   assistantMessages: AssistantMessage[],
@@ -221,6 +234,7 @@ export async function* handleStopHooks(
     const hookErrors: string[] = []
     const hookInfos: StopHookInfo[] = []
     let goalCompleted = false
+    let goalContinuationReason: string | null = null
 
     for await (const result of generator) {
       if (result.message) {
@@ -283,6 +297,9 @@ export async function* handleStopHooks(
         }
       }
       if (result.blockingError) {
+        if (isGoalPromptHookCommand(result.blockingError.command)) {
+          goalContinuationReason ??= result.blockingError.blockingError
+        }
         const userMessage = createUserMessage({
           content: getStopHookMessage(result.blockingError),
           isMeta: true, // Hide from UI (shown in summary message instead)
@@ -355,6 +372,12 @@ export async function* handleStopHooks(
     if (goalCompleted) {
       yield createCommandInputMessage(
         '<local-command-stdout>Goal marked complete.</local-command-stdout>',
+      )
+    }
+
+    if (goalContinuationReason) {
+      yield createCommandInputMessage(
+        `<local-command-stdout>${formatGoalContinuationStatusOutput(goalContinuationReason)}</local-command-stdout>`,
       )
     }
 

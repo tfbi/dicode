@@ -1192,6 +1192,7 @@ export const kr: Record<TranslationKey, string> = {
   'chat.goalEvent.resumed': '목표 재개됨',
   'chat.goalEvent.completed': '목표 완료됨',
   'chat.goalEvent.cleared': '목표 지워짐',
+  'chat.goalEvent.continuing': '목표 계속 진행 중',
   'chat.goalEvent.message': '목표 업데이트',
   'chat.goalEvent.objective': '목표: {value}',
   'chat.goalEvent.statusValue': '상태: {value}',

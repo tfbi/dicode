@@ -855,6 +855,27 @@ describe('chatStore history mapping', () => {
     ])
   })
 
+  it('restores /goal continuation markers from transcript history', () => {
+    const messages: MessageEntry[] = [
+      {
+        id: 'goal-continuing',
+        type: 'system',
+        timestamp: '2026-04-06T00:00:02.000Z',
+        content: '<local-command-stdout>Goal continuing: verify the release path</local-command-stdout>',
+      },
+    ]
+
+    expect(mapHistoryMessagesToUiMessages(messages)).toMatchObject([
+      {
+        id: 'goal-continuing',
+        type: 'goal_event',
+        action: 'status',
+        status: 'continuing',
+        message: 'Goal continuing: verify the release path',
+      },
+    ])
+  })
+
   it('restores completed /goal state from transcript history after app restart', async () => {
     vi.mocked(sessionsApi.getMessages).mockResolvedValueOnce({
       messages: [

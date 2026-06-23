@@ -483,6 +483,23 @@ describe('WebSocket goal command events', () => {
     ])
   })
 
+  it('classifies /goal continuation output as a visible goal status event', () => {
+    const output = 'Goal continuing: finish release validation'
+
+    expect(runGoalCommand(`goal-continue-${crypto.randomUUID()}`, 'ship docs', output)).toEqual([
+      expect.objectContaining({
+        type: 'system_notification',
+        subtype: 'goal_event',
+        message: output,
+        data: {
+          action: 'status',
+          status: 'continuing',
+          message: output,
+        },
+      }),
+    ])
+  })
+
   it('allows direct /goal local command output through the pre-turn mute gate', () => {
     const shouldForward = createCurrentTurnLocalCommandForwarder(
       parseSlashCommand('/goal ship the smoke test'),

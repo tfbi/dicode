@@ -535,6 +535,44 @@ describe('MessageList nested tool calls', () => {
     expect(screen.getByText('Budget: 0 / unlimited tokens')).toBeTruthy()
   })
 
+  it('renders goal continuation status as a divider between assistant turns', () => {
+    useChatStore.setState({
+      sessions: {
+        [ACTIVE_TAB]: makeSessionState({
+          messages: [
+            {
+              id: 'assistant-1',
+              type: 'assistant_text',
+              content: '上一轮回答到这里。',
+              timestamp: 1,
+            },
+            {
+              id: 'goal-continue',
+              type: 'goal_event',
+              action: 'status',
+              status: 'continuing',
+              message: 'Goal continuing: 还需要补充验证',
+              timestamp: 2,
+            },
+            {
+              id: 'assistant-2',
+              type: 'assistant_text',
+              content: '后续轮次从这里开始。',
+              timestamp: 3,
+            },
+          ],
+        }),
+      },
+    })
+
+    render(<MessageList />)
+
+    expect(screen.getByTestId('goal-continuation-divider')).toBeTruthy()
+    expect(screen.getByText('Goal continuing')).toBeTruthy()
+    expect(screen.getByText('还需要补充验证')).toBeTruthy()
+    expect(screen.queryByText('Goal status')).toBeNull()
+  })
+
   it('renders non-agent background progress inline in the transcript', () => {
     useChatStore.setState({
       sessions: {

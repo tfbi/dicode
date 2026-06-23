@@ -1192,6 +1192,7 @@ export const zh: Record<TranslationKey, string> = {
   'chat.goalEvent.resumed': '目标已恢复',
   'chat.goalEvent.completed': '目标已完成',
   'chat.goalEvent.cleared': '目标已清除',
+  'chat.goalEvent.continuing': '目标继续执行',
   'chat.goalEvent.message': '目标更新',
   'chat.goalEvent.objective': '目标：{value}',
   'chat.goalEvent.statusValue': '状态：{value}',

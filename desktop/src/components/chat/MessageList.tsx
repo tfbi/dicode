@@ -300,6 +300,31 @@ function GoalEventCard({ message }: { message: GoalEvent }) {
   )
 }
 
+function GoalContinuationDivider({ message }: { message: GoalEvent }) {
+  const t = useTranslation()
+  const reason = message.message?.replace(/^Goal continuing:\s*/i, '').trim()
+
+  return (
+    <section data-testid="goal-continuation-divider" className="my-4 w-full px-1">
+      <div className="flex w-full items-center gap-3">
+        <div className="h-px flex-1 bg-[var(--color-border)]" aria-hidden="true" />
+        <div className="inline-flex min-h-8 max-w-[min(78vw,620px)] items-center gap-2 rounded-md px-2.5 py-1 text-[13px] font-medium text-[var(--color-text-secondary)]">
+          <Target size={16} strokeWidth={2.1} className="shrink-0 text-[var(--color-memory-accent)]" aria-hidden="true" />
+          <span className="shrink-0 font-semibold text-[var(--color-text-primary)]">
+            {t('chat.goalEvent.continuing')}
+          </span>
+          {reason ? (
+            <span className="min-w-0 truncate text-[12px] text-[var(--color-text-tertiary)]" title={reason}>
+              {reason}
+            </span>
+          ) : null}
+        </div>
+        <div className="h-px flex-1 bg-[var(--color-border)]" aria-hidden="true" />
+      </div>
+    </section>
+  )
+}
+
 function formatBackgroundTaskDuration(durationMs?: number) {
   if (typeof durationMs !== 'number' || durationMs < 0) return null
   const seconds = Math.round(durationMs / 1000)
@@ -2210,7 +2235,9 @@ export const MessageBlock = memo(function MessageBlock({
     case 'compact_summary':
       return <CompactStatusDivider message={message} state={message.phase === 'compacting' ? 'compacting' : 'complete'} />
     case 'goal_event':
-      return <GoalEventCard message={message} />
+      return message.action === 'status' && message.status === 'continuing'
+        ? <GoalContinuationDivider message={message} />
+        : <GoalEventCard message={message} />
     case 'background_task':
       return <BackgroundTaskEventCard message={message} />
     case 'system':

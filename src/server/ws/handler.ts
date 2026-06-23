@@ -2287,6 +2287,13 @@ function extractGoalEvent(
   if (trimmed === 'No active goal.') {
     return { action: 'message', message: trimmed }
   }
+  if (trimmed.startsWith('Goal continuing:')) {
+    return {
+      action: 'status',
+      status: 'continuing',
+      message: trimmed,
+    }
+  }
 
   if (trimmed.startsWith('Goal set:')) {
     const objective = trimmed.slice('Goal set:'.length).trim()
@@ -2305,6 +2312,7 @@ function looksLikeGoalCommandOutput(output: string): boolean {
   const trimmed = output.trim()
   return (
     trimmed.startsWith('Goal set:') ||
+    trimmed.startsWith('Goal continuing:') ||
     trimmed.startsWith('Goal cleared:') ||
     trimmed === 'Goal cleared.' ||
     trimmed === 'Goal marked complete.' ||
