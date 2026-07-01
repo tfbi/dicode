@@ -12,6 +12,7 @@ import { useOpenTargetStore } from '../../stores/openTargetStore'
 import { desktopUiPreferencesApi, type SidebarProjectPreferences } from '../../api/desktopUiPreferences'
 import { getDesktopHost } from '../../lib/desktopHost'
 import { publicAssetPath } from '../../lib/publicAsset'
+import { useDicodeAuthStore } from '../../stores/dicodeAuthStore'
 
 const desktopHost = getDesktopHost()
 const isDesktopRuntime = desktopHost.isDesktop
@@ -69,12 +70,14 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
   const activeTabId = useTabStore((s) => s.activeTabId)
   const tabs = useTabStore((s) => s.tabs)
   const chatSessions = useChatStore((s) => s.sessions)
+  const dicodeAuthStatus = useDicodeAuthStore((s) => s.status)
   const closeTab = useTabStore((s) => s.closeTab)
   const disconnectSession = useChatStore((s) => s.disconnectSession)
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [projectContextMenu, setProjectContextMenu] = useState<{ key: string; x: number; y: number } | null>(null)
   const [projectHeaderMenu, setProjectHeaderMenu] = useState<{ type: SidebarHeaderMenuType; x: number; y: number } | null>(null)
   const [projectHeaderSubmenu, setProjectHeaderSubmenu] = useState<{ type: 'organize' | 'sort'; x: number; y: number } | null>(null)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null)
   const [pendingBatchDeleteSessionIds, setPendingBatchDeleteSessionIds] = useState<string[] | null>(null)
   const [isBatchDeleting, setIsBatchDeleting] = useState(false)
@@ -101,16 +104,17 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
   }, [sidebarOpen])
 
   useEffect(() => {
-    if (!contextMenu && !projectContextMenu && !projectHeaderMenu && !projectHeaderSubmenu) return
+    if (!contextMenu && !projectContextMenu && !projectHeaderMenu && !projectHeaderSubmenu && !accountMenuOpen) return
     const close = () => {
       setContextMenu(null)
       setProjectContextMenu(null)
       setProjectHeaderMenu(null)
       setProjectHeaderSubmenu(null)
+      setAccountMenuOpen(false)
     }
     document.addEventListener('click', close)
     return () => document.removeEventListener('click', close)
-  }, [contextMenu, projectContextMenu, projectHeaderMenu, projectHeaderSubmenu])
+  }, [accountMenuOpen, contextMenu, projectContextMenu, projectHeaderMenu, projectHeaderSubmenu])
 
   // Title filtering moved into the global search modal (Cmd+K); the list shows all sessions.
   const filteredSessions = sessions
@@ -150,9 +154,29 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
     [pendingBatchDeleteSessionIds, sessionsById],
   )
   const expanded = isMobile ? true : sidebarOpen
+  const dicodeUser = dicodeAuthStatus?.loggedIn ? dicodeAuthStatus.user : null
+  const dicodeUserName = getDicodeUserDisplayName(dicodeUser)
+  const dicodeUserMeta = getDicodeUserMeta(dicodeUser)
+  const dicodeHomeUrl = 'https://github.com/tfbi/dicode'
   const closeMobileDrawer = useCallback(() => {
     if (isMobile) onRequestClose?.()
   }, [isMobile, onRequestClose])
+  const openSettingsTab = useCallback(() => {
+    useTabStore.getState().openTab(SETTINGS_TAB_ID, t('sidebar.settings'), 'settings')
+    setAccountMenuOpen(false)
+    closeMobileDrawer()
+  }, [closeMobileDrawer, t])
+  const handleDicodeLogout = useCallback(async () => {
+    setAccountMenuOpen(false)
+    try {
+      await useDicodeAuthStore.getState().logout()
+    } catch {
+      addToast({
+        type: 'error',
+        message: t('sidebar.signOutFailed'),
+      })
+    }
+  }, [addToast, t])
 
   const applySidebarProjectPreferences = useCallback((preferences: SidebarProjectPreferences) => {
     setProjectOrder(preferences.projectOrder)
@@ -605,21 +629,21 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
       >
         <div className={`flex ${expanded ? 'items-center justify-between gap-3' : 'flex-col items-center gap-2'}`}>
           <div className={`flex min-w-0 items-center ${expanded ? 'gap-2.5' : 'justify-center'}`}>
-            <img src={publicAssetPath('app-icon.png')} alt="" className="h-8 w-8 flex-shrink-0" />
+            <img src={publicAssetPath('dicode-logo.svg')} alt="" className="h-8 w-8 flex-shrink-0 rounded-[9px]" />
             <span
-              className={`sidebar-copy ${expanded ? 'sidebar-copy--visible' : 'sidebar-copy--hidden'} text-[13px] font-semibold tracking-tight text-[var(--color-text-primary)]`}
+              className={`sidebar-copy ${expanded ? 'sidebar-copy--visible' : 'sidebar-copy--hidden'} text-[14px] font-semibold tracking-tight text-[var(--color-text-primary)]`}
               style={{ fontFamily: 'var(--font-headline)' }}
             >
-              Claude Code <span className="text-[var(--color-primary-container)]">Haha</span>
+              Dicode
             </span>
           </div>
           <div className={`flex items-center ${expanded ? 'gap-1.5' : 'flex-col gap-2'}`}>
             <a
-              href="https://github.com/NanmiCoder/cc-haha"
+              href={dicodeHomeUrl}
               target="_blank"
               rel="noopener noreferrer"
               className={`sidebar-copy ${expanded ? 'sidebar-copy--visible' : 'sidebar-copy--hidden'} inline-flex items-center justify-center rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]`}
-              title="GitHub"
+              title="Dicode"
               tabIndex={expanded ? undefined : -1}
               aria-hidden={!expanded}
             >
@@ -1044,21 +1068,65 @@ export function Sidebar({ isMobile = false, onRequestClose }: SidebarProps) {
       {!isMobile && (
         <div
           data-testid="sidebar-settings-dock"
-          className={`sidebar-settings-dock absolute bottom-0 left-0 right-0 border-t border-[var(--color-border)] p-3 ${expanded ? '' : 'flex justify-center'}`}
+          className={`sidebar-settings-dock absolute bottom-0 left-0 right-0 border-t border-[var(--color-border)] p-3 ${expanded ? '' : 'flex flex-col items-center'}`}
         >
-          <NavItem
-            active={activeTabId === SETTINGS_TAB_ID}
-            collapsed={!expanded}
-            label={t('sidebar.settings')}
-            touchFriendly={isMobile}
-            onClick={() => {
-              useTabStore.getState().openTab(SETTINGS_TAB_ID, t('sidebar.settings'), 'settings')
-              closeMobileDrawer()
+          <button
+            type="button"
+            data-testid="sidebar-dicode-user"
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+            aria-label={dicodeUserName}
+            onClick={(event) => {
+              event.stopPropagation()
+              setAccountMenuOpen((open) => !open)
             }}
-            icon={<span className="material-symbols-outlined text-[18px]">settings</span>}
+            className={`flex min-w-0 items-center ${expanded ? 'w-full gap-2 rounded-[12px] px-2 py-1.5' : 'h-9 w-9 justify-center rounded-full'} text-left text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]`}
+            title={dicodeUserName}
           >
-            {t('sidebar.settings')}
-          </NavItem>
+            <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-surface)] text-[11px] font-bold text-[var(--color-brand)] shadow-sm">
+              {getDicodeUserInitial(dicodeUserName)}
+            </div>
+            <div className={`sidebar-copy ${expanded ? 'sidebar-copy--visible' : 'sidebar-copy--hidden'} min-w-0`}>
+              <div className="truncate text-[12px] font-semibold leading-4 text-[var(--color-text-primary)]">
+                {dicodeUserName}
+              </div>
+              {dicodeUserMeta ? (
+                <div className="truncate text-[11px] leading-4 text-[var(--color-text-tertiary)]">
+                  {dicodeUserMeta}
+                </div>
+              ) : null}
+            </div>
+            {expanded ? (
+              <ChevronDown className={`ml-auto h-4 w-4 flex-shrink-0 transition-transform ${accountMenuOpen ? 'rotate-180' : ''}`} />
+            ) : null}
+          </button>
+          {accountMenuOpen && (
+            <div
+              role="menu"
+              data-testid="sidebar-account-menu"
+              className={`absolute bottom-[calc(100%-0.25rem)] z-50 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] py-1 shadow-[var(--shadow-dropdown)] ${expanded ? 'left-3 right-3' : 'left-3 w-44'}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={openSettingsTab}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--color-surface-hover)] ${activeTabId === SETTINGS_TAB_ID ? 'text-[var(--color-brand)]' : 'text-[var(--color-text-primary)]'}`}
+              >
+                <span aria-hidden="true" className="material-symbols-outlined text-[17px]">settings</span>
+                <span>{t('sidebar.settings')}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => void handleDicodeLogout()}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
+              >
+                <span aria-hidden="true" className="material-symbols-outlined text-[17px]">logout</span>
+                <span>{t('sidebar.signOut')}</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1913,6 +1981,30 @@ function formatRelativeTime(
   const day = Math.floor(hr / 24)
   if (day < 30) return t('session.timeDays', { n: day })
   return new Intl.DateTimeFormat(undefined, { month: 'numeric', day: 'numeric' }).format(date)
+}
+
+type DicodeSidebarUser = {
+  userId?: string
+  userName?: string
+  nickName?: string
+  email?: string
+}
+
+function getDicodeUserDisplayName(user: DicodeSidebarUser | null): string {
+  const value = user?.nickName || user?.userName || user?.email || user?.userId
+  return value?.trim() || '未登录'
+}
+
+function getDicodeUserMeta(user: DicodeSidebarUser | null): string | null {
+  if (!user) return null
+  const value = user.email || user.userId
+  return value?.trim() || null
+}
+
+function getDicodeUserInitial(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return 'D'
+  return trimmed.slice(0, 1).toUpperCase()
 }
 
 function GitHubIcon() {

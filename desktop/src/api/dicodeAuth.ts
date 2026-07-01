@@ -13,11 +13,13 @@ export type DicodeAuthStatus =
       loggedIn: false
       required: boolean
       configured: boolean
+      hostUrl?: string
     }
   | {
       loggedIn: true
       required: boolean
       configured: boolean
+      hostUrl?: string
       accessToken: string
       expiresTime: number
       user: DicodeAuthUser

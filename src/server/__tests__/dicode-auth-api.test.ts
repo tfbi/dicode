@@ -98,6 +98,7 @@ describe('Dicode auth API', () => {
       loggedIn: false,
       required: true,
       configured: true,
+      hostUrl: 'https://iam.example.com',
     })
   })
 

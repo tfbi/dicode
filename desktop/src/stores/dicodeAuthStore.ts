@@ -20,7 +20,7 @@ function toErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
 
-export const useDicodeAuthStore = create<DicodeAuthState>((set) => ({
+export const useDicodeAuthStore = create<DicodeAuthState>((set, get) => ({
   status: null,
   isLoading: false,
   error: null,
@@ -59,7 +59,16 @@ export const useDicodeAuthStore = create<DicodeAuthState>((set) => ({
     try {
       await dicodeAuthApi.logout()
       setAuthToken(null)
-      set({ status: { loggedIn: false, required: true, configured: true }, isLoading: false })
+      const previousHostUrl = get().status?.hostUrl
+      set({
+        status: {
+          loggedIn: false,
+          required: true,
+          configured: true,
+          ...(previousHostUrl ? { hostUrl: previousHostUrl } : {}),
+        },
+        isLoading: false,
+      })
     } catch (error) {
       set({ isLoading: false, error: toErrorMessage(error, 'Dicode IAM logout failed.') })
       throw error

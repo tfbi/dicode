@@ -27,11 +27,13 @@ export type DicodeAuthStatus =
       loggedIn: false
       required: boolean
       configured: boolean
+      hostUrl?: string
     }
   | {
       loggedIn: true
       required: boolean
       configured: boolean
+      hostUrl?: string
       accessToken: string
       expiresTime: number
       user: DicodeAuthUser
@@ -123,6 +125,26 @@ export class DicodeAuthService {
     return loginURL.toString()
   }
 
+  getHostUrl(): string | undefined {
+    const config = this.readIamConfig()
+    const host = config.host?.trim()
+    if (host) {
+      try {
+        const parsed = new URL(host)
+        return parsed.origin
+      } catch {
+        return `https://${host}`
+      }
+    }
+    const loginUrl = this.loginUrl()
+    if (!loginUrl) return undefined
+    try {
+      return new URL(loginUrl).origin
+    } catch {
+      return undefined
+    }
+  }
+
   async exchangeCodeAndState(input: TokenExchangeInput): Promise<DicodeAuthTokens> {
     const url = this.buildTokenExchangeUrl(input)
     const res = await this.fetchFn(url)
@@ -181,14 +203,16 @@ export class DicodeAuthService {
   async getStatus(): Promise<DicodeAuthStatus> {
     const required = this.isRequired()
     const configured = this.isConfigured()
+    const hostUrl = this.getHostUrl()
     const tokens = await this.loadTokens()
     if (!tokens || this.isExpired(tokens)) {
-      return { loggedIn: false, required, configured }
+      return { loggedIn: false, required, configured, ...(hostUrl ? { hostUrl } : {}) }
     }
     return {
       loggedIn: true,
       required,
       configured,
+      ...(hostUrl ? { hostUrl } : {}),
       accessToken: tokens.accessToken,
       expiresTime: tokens.expiresTime,
       user: this.toUser(tokens),

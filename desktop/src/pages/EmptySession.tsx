@@ -570,8 +570,8 @@ export function EmptySession() {
           isMobileComposer ? 'max-w-[300px]' : 'max-w-md'
         }`}>
           <img
-            src={publicAssetPath('app-icon.png')}
-            alt="Claude Code Haha"
+            src={publicAssetPath('dicode-logo.svg')}
+            alt="Dicode"
             className={isMobileComposer ? 'mb-4 h-16 w-16' : 'mb-6 h-24 w-24'}
           />
           <h1

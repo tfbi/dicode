@@ -26,6 +26,8 @@ export const kr: Record<TranslationKey, string> = {
   'sidebar.scheduled': '예약 작업',
   'sidebar.terminal': '터미널',
   'sidebar.settings': '설정',
+  'sidebar.signOut': '로그아웃',
+  'sidebar.signOutFailed': '로그아웃할 수 없습니다.',
   'sidebar.searchPlaceholder': '세션 검색...',
   'sidebar.noSessions': '아직 세션이 없습니다',
   'sidebar.noMatching': '일치하는 세션이 없습니다',
@@ -1135,7 +1137,7 @@ export const kr: Record<TranslationKey, string> = {
 
   // ─── Empty Session ──────────────────────────────────────
   'empty.title': '새 세션',
-  'empty.subtitle': '새 코딩 세션을 시작합니다. Claude가 프로젝트를 구축하고 디버깅하며 설계하도록 도울 준비가 되어 있습니다.',
+  'empty.subtitle': '새 코딩 세션을 시작합니다. Dicode가 프로젝트를 구축하고 디버깅하며 설계하도록 도울 준비가 되어 있습니다.',
   'empty.placeholder': '무엇이든 물어보세요...',
   'empty.addFiles': '파일 또는 사진 추가',
   'empty.slashCommands': '슬래시 명령',

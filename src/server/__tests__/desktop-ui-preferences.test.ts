@@ -7,14 +7,28 @@ import { DesktopUiPreferencesService } from '../services/desktopUiPreferencesSer
 
 let tmpDir: string
 let originalConfigDir: string | undefined
+let originalArgv: string[]
+let dicodeConfigPath: string
 
 async function setup() {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'desktop-ui-preferences-'))
   originalConfigDir = process.env.CLAUDE_CONFIG_DIR
+  originalArgv = process.argv
   process.env.CLAUDE_CONFIG_DIR = tmpDir
+  dicodeConfigPath = path.join(tmpDir, 'dicode-config.json')
+  process.argv = [...originalArgv, '--dicode-config-path', dicodeConfigPath]
+  await fs.writeFile(dicodeConfigPath, JSON.stringify({
+    iam: {
+      enabled: true,
+      loginUrl: 'https://iam.example.com/login',
+      host: 'https://portal.example.com',
+      tokenPath: '/admin-api/auth/just-auth-login',
+    },
+  }))
 }
 
 async function teardown() {
+  process.argv = originalArgv
   if (originalConfigDir !== undefined) {
     process.env.CLAUDE_CONFIG_DIR = originalConfigDir
   } else {
@@ -58,8 +72,8 @@ describe('DesktopUiPreferencesService', () => {
     expect(result.preferences).toEqual({
       schemaVersion: 2,
       profile: {
-        displayName: 'cc-haha',
-        subtitle: 'github.com/NanmiCoder/cc-haha',
+        displayName: 'Dicode',
+        subtitle: 'https://portal.example.com',
         avatarFile: null,
         avatarUpdatedAt: null,
       },
@@ -101,8 +115,8 @@ describe('DesktopUiPreferencesService', () => {
       schemaVersion: 2,
       futureField: { keep: true },
       profile: {
-        displayName: 'cc-haha',
-        subtitle: 'github.com/NanmiCoder/cc-haha',
+        displayName: 'Dicode',
+        subtitle: 'https://portal.example.com',
         avatarFile: null,
         avatarUpdatedAt: null,
       },
@@ -118,8 +132,8 @@ describe('DesktopUiPreferencesService', () => {
       schemaVersion: 2,
       futureField: { keep: true },
       profile: {
-        displayName: 'cc-haha',
-        subtitle: 'github.com/NanmiCoder/cc-haha',
+        displayName: 'Dicode',
+        subtitle: 'https://portal.example.com',
         avatarFile: null,
         avatarUpdatedAt: null,
       },
@@ -144,7 +158,8 @@ describe('DesktopUiPreferencesService', () => {
 
     expect(result.exists).toBe(false)
     expect(result.preferences.sidebar.hiddenProjects).toEqual([])
-    expect(result.preferences.profile.displayName).toBe('cc-haha')
+    expect(result.preferences.profile.displayName).toBe('Dicode')
+    expect(result.preferences.profile.subtitle).toBe('https://portal.example.com')
     expect(files.some((name) => name.startsWith('desktop-ui.json.invalid-'))).toBe(true)
   })
 
@@ -230,8 +245,8 @@ describe('desktop UI preferences API', () => {
       preferences: {
         schemaVersion: 2,
         profile: {
-          displayName: 'cc-haha',
-          subtitle: 'github.com/NanmiCoder/cc-haha',
+          displayName: 'Dicode',
+          subtitle: 'https://portal.example.com',
           avatarFile: null,
           avatarUpdatedAt: null,
         },
@@ -255,8 +270,8 @@ describe('desktop UI preferences API', () => {
       preferences: {
         schemaVersion: 2,
         profile: {
-          displayName: 'cc-haha',
-          subtitle: 'github.com/NanmiCoder/cc-haha',
+          displayName: 'Dicode',
+          subtitle: 'https://portal.example.com',
           avatarFile: null,
           avatarUpdatedAt: null,
         },

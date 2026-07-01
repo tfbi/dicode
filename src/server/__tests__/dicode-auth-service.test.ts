@@ -78,6 +78,11 @@ describe('DicodeAuthService', () => {
     expect(service.buildTokenExchangeUrl({ code: 'c', state: 's' })).toBe(
       'https://auth.example.org/admin-api/auth/just-auth-login?code=c&state=s',
     )
+    expect(service.getHostUrl()).toBe('https://auth.example.org')
+  })
+
+  test('returns host URL from login URL when host is not configured', () => {
+    expect(service.getHostUrl()).toBe('https://iam.example.com')
   })
 
   test('is not configured without config file', async () => {
@@ -132,6 +137,7 @@ describe('DicodeAuthService', () => {
       loggedIn: true,
       required: true,
       configured: true,
+      hostUrl: 'https://iam.example.com',
       accessToken: 'access-token',
       expiresTime: expect.any(Number),
       user: {
@@ -157,6 +163,7 @@ describe('DicodeAuthService', () => {
       loggedIn: false,
       required: true,
       configured: true,
+      hostUrl: 'https://iam.example.com',
     })
   })
 
