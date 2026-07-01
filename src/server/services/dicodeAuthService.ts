@@ -1,4 +1,5 @@
-import * as fs from 'fs/promises'
+import * as fs from 'fs'
+import * as fsp from 'fs/promises'
 import * as os from 'os'
 import * as path from 'path'
 
@@ -59,6 +60,15 @@ type IamTokenResponse = {
   message?: string
 }
 
+type DicodeConfig = {
+  iam?: {
+    enabled?: boolean
+    loginUrl?: string
+    host?: string
+    tokenPath?: string
+  }
+}
+
 const DEFAULT_TOKEN_PATH = '/admin-api/auth/just-auth-login'
 
 export class DicodeAuthService {
@@ -73,19 +83,18 @@ export class DicodeAuthService {
   }
 
   isConfigured(): boolean {
-    return Boolean(this.loginUrl())
+    return Boolean(this.readIamConfig().loginUrl)
   }
 
   isRequired(): boolean {
-    if (process.env.DICODE_IAM_REQUIRED === '0') return false
-    if (process.env.DICODE_IAM_REQUIRED === '1') return true
-    return this.isConfigured()
+    const config = this.readIamConfig()
+    return config.enabled === true && Boolean(config.loginUrl)
   }
 
   getLoginUrl(): string {
     const loginUrl = this.loginUrl()
     if (!loginUrl) {
-      throw new Error('DICODE_IAM_LOGIN_URL is not configured')
+      throw new Error('Dicode IAM loginUrl is not configured in dicode/config.json')
     }
     return loginUrl
   }
@@ -93,12 +102,12 @@ export class DicodeAuthService {
   buildTokenExchangeUrl({ code, state }: TokenExchangeInput): string {
     const host = this.iamHost()
     if (!host) {
-      throw new Error('DICODE_IAM_LOGIN_URL or DICODE_IAM_HOST is not configured')
+      throw new Error('Dicode IAM host or loginUrl is not configured in dicode/config.json')
     }
     const loginURL = new URL('https://placeholder.local')
     loginURL.protocol = 'https:'
     loginURL.host = host
-    loginURL.pathname = process.env.DICODE_IAM_TOKEN_PATH || DEFAULT_TOKEN_PATH
+    loginURL.pathname = this.readIamConfig().tokenPath || DEFAULT_TOKEN_PATH
     loginURL.searchParams.set('code', code)
     loginURL.searchParams.set('state', state)
     return loginURL.toString()
@@ -135,7 +144,7 @@ export class DicodeAuthService {
 
   async loadTokens(): Promise<DicodeAuthTokens | null> {
     try {
-      const raw = await fs.readFile(this.getAuthFilePath(), 'utf-8')
+      const raw = await fsp.readFile(this.getAuthFilePath(), 'utf-8')
       return JSON.parse(raw) as DicodeAuthTokens
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null
@@ -145,15 +154,15 @@ export class DicodeAuthService {
 
   async saveTokens(tokens: DicodeAuthTokens): Promise<void> {
     const filePath = this.getAuthFilePath()
-    await fs.mkdir(path.dirname(filePath), { recursive: true })
+    await fsp.mkdir(path.dirname(filePath), { recursive: true })
     const tmp = `${filePath}.tmp.${process.pid}`
-    await fs.writeFile(tmp, JSON.stringify(tokens, null, 2), { mode: 0o600 })
-    await fs.rename(tmp, filePath)
+    await fsp.writeFile(tmp, JSON.stringify(tokens, null, 2), { mode: 0o600 })
+    await fsp.rename(tmp, filePath)
   }
 
   async deleteTokens(): Promise<void> {
     try {
-      await fs.unlink(this.getAuthFilePath())
+      await fsp.unlink(this.getAuthFilePath())
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
     }
@@ -201,13 +210,30 @@ export class DicodeAuthService {
     return path.join(configDir, 'dicode', 'auth.json')
   }
 
+  private getConfigFilePath(): string {
+    const configDir =
+      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+    return path.join(configDir, 'dicode', 'config.json')
+  }
+
+  private readIamConfig(): NonNullable<DicodeConfig['iam']> {
+    try {
+      const raw = fs.readFileSync(this.getConfigFilePath(), 'utf-8')
+      const parsed = JSON.parse(raw) as DicodeConfig
+      return parsed.iam ?? {}
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {}
+      throw err
+    }
+  }
+
   private loginUrl(): string | undefined {
-    const value = process.env.DICODE_IAM_LOGIN_URL?.trim()
+    const value = this.readIamConfig().loginUrl?.trim()
     return value || undefined
   }
 
   private iamHost(): string | undefined {
-    const value = process.env.DICODE_IAM_HOST?.trim()
+    const value = this.readIamConfig().host?.trim()
     if (value) {
       try {
         return new URL(value).host

@@ -9,29 +9,18 @@ import {
 
 let tmpDir: string
 let originalConfigDir: string | undefined
-let originalLoginUrl: string | undefined
-let originalHost: string | undefined
-let originalTokenPath: string | undefined
 let service: DicodeAuthService
 
 async function setup() {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dicode-auth-test-'))
   originalConfigDir = process.env.CLAUDE_CONFIG_DIR
-  originalLoginUrl = process.env.DICODE_IAM_LOGIN_URL
-  originalHost = process.env.DICODE_IAM_HOST
-  originalTokenPath = process.env.DICODE_IAM_TOKEN_PATH
   process.env.CLAUDE_CONFIG_DIR = tmpDir
-  process.env.DICODE_IAM_LOGIN_URL = 'https://iam.example.com/login'
-  delete process.env.DICODE_IAM_HOST
-  delete process.env.DICODE_IAM_TOKEN_PATH
+  await writeConfig({ iam: { enabled: true, loginUrl: 'https://iam.example.com/login' } })
   service = new DicodeAuthService()
 }
 
 async function teardown() {
   restoreEnv('CLAUDE_CONFIG_DIR', originalConfigDir)
-  restoreEnv('DICODE_IAM_LOGIN_URL', originalLoginUrl)
-  restoreEnv('DICODE_IAM_HOST', originalHost)
-  restoreEnv('DICODE_IAM_TOKEN_PATH', originalTokenPath)
   await fs.rm(tmpDir, { recursive: true, force: true })
 }
 
@@ -41,6 +30,12 @@ function restoreEnv(key: string, value: string | undefined) {
   } else {
     process.env[key] = value
   }
+}
+
+async function writeConfig(config: unknown) {
+  const configPath = path.join(tmpDir, 'dicode', 'config.json')
+  await fs.mkdir(path.dirname(configPath), { recursive: true })
+  await fs.writeFile(configPath, JSON.stringify(config, null, 2))
 }
 
 describe('DicodeAuthService', () => {
@@ -58,18 +53,42 @@ describe('DicodeAuthService', () => {
     )
   })
 
-  test('supports custom token path', () => {
-    process.env.DICODE_IAM_TOKEN_PATH = '/internal/auth/login'
+  test('supports custom token path', async () => {
+    await fs.writeFile(path.join(tmpDir, 'dicode', 'config.json'), JSON.stringify({
+      iam: {
+        enabled: true,
+        loginUrl: 'https://iam.example.com/login',
+        tokenPath: '/internal/auth/login',
+      },
+    }))
     expect(service.buildTokenExchangeUrl({ code: 'c', state: 's' })).toBe(
       'https://iam.example.com/internal/auth/login?code=c&state=s',
     )
   })
 
-  test('supports host override with full URL', () => {
-    process.env.DICODE_IAM_HOST = 'https://auth.example.org'
+  test('supports host override with full URL', async () => {
+    await fs.writeFile(path.join(tmpDir, 'dicode', 'config.json'), JSON.stringify({
+      iam: {
+        enabled: true,
+        loginUrl: 'https://iam.example.com/login',
+        host: 'https://auth.example.org',
+      },
+    }))
     expect(service.buildTokenExchangeUrl({ code: 'c', state: 's' })).toBe(
       'https://auth.example.org/admin-api/auth/just-auth-login?code=c&state=s',
     )
+  })
+
+  test('is not configured without config file', async () => {
+    await fs.rm(path.join(tmpDir, 'dicode', 'config.json'), { force: true })
+    expect(service.isConfigured()).toBe(false)
+    expect(service.isRequired()).toBe(false)
+  })
+
+  test('is not required when config disables IAM', async () => {
+    await writeConfig({ iam: { enabled: false, loginUrl: 'https://iam.example.com/login' } })
+    expect(service.isConfigured()).toBe(true)
+    expect(service.isRequired()).toBe(false)
   })
 
   test('saveTokens writes file with 0600 permissions and loadTokens reads it', async () => {

@@ -7,23 +7,16 @@ import { dicodeAuthService } from '../services/dicodeAuthService.js'
 
 let tmpDir: string
 let originalConfigDir: string | undefined
-let originalLoginUrl: string | undefined
-let originalHost: string | undefined
 
 async function setup() {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dicode-auth-api-test-'))
   originalConfigDir = process.env.CLAUDE_CONFIG_DIR
-  originalLoginUrl = process.env.DICODE_IAM_LOGIN_URL
-  originalHost = process.env.DICODE_IAM_HOST
   process.env.CLAUDE_CONFIG_DIR = tmpDir
-  process.env.DICODE_IAM_LOGIN_URL = 'https://iam.example.com/login'
-  delete process.env.DICODE_IAM_HOST
+  await writeConfig({ iam: { enabled: true, loginUrl: 'https://iam.example.com/login' } })
 }
 
 async function teardown() {
   restoreEnv('CLAUDE_CONFIG_DIR', originalConfigDir)
-  restoreEnv('DICODE_IAM_LOGIN_URL', originalLoginUrl)
-  restoreEnv('DICODE_IAM_HOST', originalHost)
   dicodeAuthService.resetFetchFn()
   await fs.rm(tmpDir, { recursive: true, force: true })
 }
@@ -34,6 +27,12 @@ function restoreEnv(key: string, value: string | undefined) {
   } else {
     process.env[key] = value
   }
+}
+
+async function writeConfig(config: unknown) {
+  const configPath = path.join(tmpDir, 'dicode', 'config.json')
+  await fs.mkdir(path.dirname(configPath), { recursive: true })
+  await fs.writeFile(configPath, JSON.stringify(config, null, 2))
 }
 
 function buildReq(method: string, pathname: string): { req: Request; url: URL; segments: string[] } {
