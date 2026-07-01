@@ -1,0 +1,8 @@
+{
+  "iam": {
+    "enabled": false,
+    "loginUrl": "",
+    "host": "",
+    "tokenPath": "/admin-api/auth/just-auth-login"
+  }
+}

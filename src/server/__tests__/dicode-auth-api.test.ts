@@ -7,16 +7,22 @@ import { dicodeAuthService } from '../services/dicodeAuthService.js'
 
 let tmpDir: string
 let originalConfigDir: string | undefined
+let originalArgv: string[]
+let configPath: string
 
 async function setup() {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dicode-auth-api-test-'))
   originalConfigDir = process.env.CLAUDE_CONFIG_DIR
+  originalArgv = process.argv
   process.env.CLAUDE_CONFIG_DIR = tmpDir
+  configPath = path.join(tmpDir, 'bundled-dicode-config.json')
+  process.argv = [...originalArgv, '--dicode-config-path', configPath]
   await writeConfig({ iam: { enabled: true, loginUrl: 'https://iam.example.com/login' } })
 }
 
 async function teardown() {
   restoreEnv('CLAUDE_CONFIG_DIR', originalConfigDir)
+  process.argv = originalArgv
   dicodeAuthService.resetFetchFn()
   await fs.rm(tmpDir, { recursive: true, force: true })
 }
@@ -30,7 +36,6 @@ function restoreEnv(key: string, value: string | undefined) {
 }
 
 async function writeConfig(config: unknown) {
-  const configPath = path.join(tmpDir, 'dicode', 'config.json')
   await fs.mkdir(path.dirname(configPath), { recursive: true })
   await fs.writeFile(configPath, JSON.stringify(config, null, 2))
 }

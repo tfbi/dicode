@@ -285,6 +285,7 @@ export function createServerPlan({
   port,
   bindHost = SERVER_BIND_HOST,
   h5DistDir = path.join(desktopRoot, 'dist'),
+  dicodeConfigPath = path.join(desktopRoot, 'resources', 'dicode', 'config.json'),
   env = process.env,
 }: {
   desktopRoot: string
@@ -292,11 +293,22 @@ export function createServerPlan({
   port: number
   bindHost?: string
   h5DistDir?: string
+  dicodeConfigPath?: string
   env?: NodeJS.ProcessEnv
 }): SidecarPlan {
   return {
     command: resolveSidecarExecutable(desktopRoot),
-    args: ['server', '--app-root', appRoot, '--host', bindHost, '--port', String(port)],
+    args: [
+      'server',
+      '--app-root',
+      appRoot,
+      '--host',
+      bindHost,
+      '--port',
+      String(port),
+      '--dicode-config-path',
+      dicodeConfigPath,
+    ],
     env: buildSidecarEnv(env, h5DistDir),
   }
 }

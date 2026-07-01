@@ -17,6 +17,7 @@
     "asarUnpack": [
       "dist/**",
       "node_modules/node-pty/**",
+      "resources/dicode/**",
       "src-tauri/binaries/**"
     ],
     "artifactName": "Claude-Code-Haha-${version}-${os}-${arch}.${ext}",
@@ -28,6 +29,7 @@
       "dist/**",
       "electron-dist/**",
       "node_modules/node-pty/**",
+      "resources/dicode/**",
       "src-tauri/binaries/**",
       "src-tauri/icons/**",
       "src-tauri/resources/preview-agent.js",

@@ -10,13 +10,15 @@ import {
 let tmpDir: string
 let originalConfigDir: string | undefined
 let service: DicodeAuthService
+let configPath: string
 
 async function setup() {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'dicode-auth-test-'))
   originalConfigDir = process.env.CLAUDE_CONFIG_DIR
   process.env.CLAUDE_CONFIG_DIR = tmpDir
+  configPath = path.join(tmpDir, 'bundled-dicode-config.json')
   await writeConfig({ iam: { enabled: true, loginUrl: 'https://iam.example.com/login' } })
-  service = new DicodeAuthService()
+  service = new DicodeAuthService({ configPath })
 }
 
 async function teardown() {
@@ -33,7 +35,6 @@ function restoreEnv(key: string, value: string | undefined) {
 }
 
 async function writeConfig(config: unknown) {
-  const configPath = path.join(tmpDir, 'dicode', 'config.json')
   await fs.mkdir(path.dirname(configPath), { recursive: true })
   await fs.writeFile(configPath, JSON.stringify(config, null, 2))
 }
@@ -54,7 +55,7 @@ describe('DicodeAuthService', () => {
   })
 
   test('supports custom token path', async () => {
-    await fs.writeFile(path.join(tmpDir, 'dicode', 'config.json'), JSON.stringify({
+    await fs.writeFile(configPath, JSON.stringify({
       iam: {
         enabled: true,
         loginUrl: 'https://iam.example.com/login',
@@ -67,7 +68,7 @@ describe('DicodeAuthService', () => {
   })
 
   test('supports host override with full URL', async () => {
-    await fs.writeFile(path.join(tmpDir, 'dicode', 'config.json'), JSON.stringify({
+    await fs.writeFile(configPath, JSON.stringify({
       iam: {
         enabled: true,
         loginUrl: 'https://iam.example.com/login',
@@ -80,7 +81,7 @@ describe('DicodeAuthService', () => {
   })
 
   test('is not configured without config file', async () => {
-    await fs.rm(path.join(tmpDir, 'dicode', 'config.json'), { force: true })
+    await fs.rm(configPath, { force: true })
     expect(service.isConfigured()).toBe(false)
     expect(service.isRequired()).toBe(false)
   })

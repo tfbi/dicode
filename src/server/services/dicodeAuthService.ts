@@ -70,9 +70,19 @@ type DicodeConfig = {
 }
 
 const DEFAULT_TOKEN_PATH = '/admin-api/auth/just-auth-login'
+const DICODE_CONFIG_PATH_ARG = '--dicode-config-path'
+
+type DicodeAuthServiceOptions = {
+  configPath?: string | null
+}
 
 export class DicodeAuthService {
   private fetchFn: FetchFn = fetch
+  private readonly configPath: string | null
+
+  constructor(options: DicodeAuthServiceOptions = {}) {
+    this.configPath = options.configPath ?? readArgValue(DICODE_CONFIG_PATH_ARG) ?? null
+  }
 
   setFetchFn(fn: FetchFn): void {
     this.fetchFn = fn
@@ -211,12 +221,15 @@ export class DicodeAuthService {
   }
 
   private getConfigFilePath(): string {
-    const configDir =
-      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
-    return path.join(configDir, 'dicode', 'config.json')
+    const configPath = this.configPath ?? readArgValue(DICODE_CONFIG_PATH_ARG)
+    if (!configPath) {
+      throw new Error('Dicode bundled config path is not configured')
+    }
+    return configPath
   }
 
   private readIamConfig(): NonNullable<DicodeConfig['iam']> {
+    if (!this.configPath && !readArgValue(DICODE_CONFIG_PATH_ARG)) return {}
     try {
       const raw = fs.readFileSync(this.getConfigFilePath(), 'utf-8')
       const parsed = JSON.parse(raw) as DicodeConfig
@@ -249,6 +262,13 @@ export class DicodeAuthService {
       return undefined
     }
   }
+}
+
+function readArgValue(flag: string): string | undefined {
+  const args = process.argv.slice(2)
+  const index = args.indexOf(flag)
+  if (index === -1) return undefined
+  return args[index + 1]
 }
 
 export const dicodeAuthService = new DicodeAuthService()
