@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { tasksApi } from '../api/tasks'
 import { notifyDesktop } from '../lib/desktopNotifications'
 import { whenDesktopServerReady } from '../lib/desktopRuntime'
+import { useDicodeAuthStore } from '../stores/dicodeAuthStore'
 import type { CronTask, TaskRun } from '../types/task'
 
 const POLL_INTERVAL_MS = 30_000
@@ -66,7 +67,11 @@ export function collectDesktopNotifiableRuns(
 }
 
 export function useScheduledTaskDesktopNotifications(): void {
+  const loggedIn = useDicodeAuthStore((s) => s.status?.loggedIn === true)
+
   useEffect(() => {
+    if (!loggedIn) return
+
     let stopped = false
     let initialized = false
     let interval: number | undefined
@@ -124,5 +129,5 @@ export function useScheduledTaskDesktopNotifications(): void {
       stopped = true
       if (interval !== undefined) window.clearInterval(interval)
     }
-  }, [])
+  }, [loggedIn])
 }

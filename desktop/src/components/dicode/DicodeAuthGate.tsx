@@ -8,6 +8,10 @@ type DicodeAuthGateProps = {
   children: ReactNode
 }
 
+function isLoginRequiredMessage(error: unknown): boolean {
+  return error instanceof Error && error.message === 'Dicode IAM login required'
+}
+
 export function DicodeAuthGate({ children }: DicodeAuthGateProps) {
   const status = useDicodeAuthStore((s) => s.status)
   const isLoading = useDicodeAuthStore((s) => s.isLoading)
@@ -32,7 +36,7 @@ export function DicodeAuthGate({ children }: DicodeAuthGateProps) {
       } catch (err) {
         setAuthToken(null)
         if (!cancelled) {
-          setStartupError(err instanceof Error ? err.message : String(err))
+          setStartupError(isLoginRequiredMessage(err) ? null : err instanceof Error ? err.message : String(err))
           setReady(true)
         }
       }

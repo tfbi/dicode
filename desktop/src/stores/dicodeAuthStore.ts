@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { ApiError } from '../api/client'
 import { dicodeAuthApi, type DicodeAuthStatus } from '../api/dicodeAuth'
 import { setAuthToken } from '../api/client'
 import { getDesktopHost } from '../lib/desktopHost'
@@ -20,6 +21,12 @@ function toErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
 
+function isLoginRequiredError(error: unknown): boolean {
+  return error instanceof ApiError &&
+    error.status === 401 &&
+    error.message === 'Dicode IAM login required'
+}
+
 export const useDicodeAuthStore = create<DicodeAuthState>((set, get) => ({
   status: null,
   isLoading: false,
@@ -34,6 +41,17 @@ export const useDicodeAuthStore = create<DicodeAuthState>((set, get) => ({
       return status
     } catch (error) {
       setAuthToken(null)
+      if (isLoginRequiredError(error)) {
+        const previousHostUrl = get().status?.hostUrl
+        const status: DicodeAuthStatus = {
+          loggedIn: false,
+          required: true,
+          configured: true,
+          ...(previousHostUrl ? { hostUrl: previousHostUrl } : {}),
+        }
+        set({ status, isLoading: false, error: null })
+        return status
+      }
       set({ isLoading: false, error: toErrorMessage(error, 'Failed to check login status.') })
       throw error
     }
