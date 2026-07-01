@@ -65,7 +65,7 @@ export function DicodeAuthGate({ children }: DicodeAuthGateProps) {
       configured={status?.configured ?? false}
       error={error ?? startupError}
       onLogin={() => {
-        void login()
+        void login().catch(() => undefined)
       }}
     />
   )
