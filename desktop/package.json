@@ -1,18 +1,17 @@
 {
-  "name": "claude-code-desktop",
+  "name": "dicode-desktop",
   "private": true,
   "version": "0.4.3",
-  "description": "Desktop coding agent workbench for Claude Code Haha.",
-  "homepage": "https://github.com/NanmiCoder/cc-haha",
+  "description": "Desktop coding agent workbench for Dicode.",
+  "homepage": "https://github.com/tfbi/dicode",
   "author": {
-    "name": "NanmiCoder",
-    "email": "relakkes@gmail.com"
+    "name": "tfbi"
   },
   "type": "module",
   "main": "electron-dist/main.cjs",
   "build": {
-    "appId": "com.claude-code-haha.desktop",
-    "productName": "Claude Code Haha",
+    "appId": "com.tfbi.dicode.desktop",
+    "productName": "Dicode",
     "asar": true,
     "asarUnpack": [
       "dist/**",
@@ -20,7 +19,7 @@
       "resources/dicode/**",
       "src-tauri/binaries/**"
     ],
-    "artifactName": "Claude-Code-Haha-${version}-${os}-${arch}.${ext}",
+    "artifactName": "Dicode-${version}-${os}-${arch}.${ext}",
     "npmRebuild": false,
     "directories": {
       "output": "build-artifacts/electron"
@@ -67,13 +66,13 @@
       ],
       "icon": "src-tauri/icons",
       "category": "Development",
-      "maintainer": "NanmiCoder <relakkes@gmail.com>"
+      "maintainer": "tfbi"
     },
     "publish": [
       {
         "provider": "github",
-        "owner": "NanmiCoder",
-        "repo": "cc-haha"
+        "owner": "tfbi",
+        "repo": "dicode"
       }
     ]
   },
