@@ -3,6 +3,7 @@ import {
   api,
   getApiUrl,
   getDefaultBaseUrl,
+  onDicodeAuthRequired,
   rawRecordDiagnosticEvent,
   setAuthToken,
   setBaseUrl,
@@ -101,6 +102,34 @@ describe('api diagnostics reporting', () => {
     const [, diagnosticInit] = fetchMock.mock.calls[1]!
     const body = JSON.parse(String((diagnosticInit as RequestInit).body))
     expect(JSON.stringify(body)).not.toContain('h5_super_secret')
+  })
+
+  it('notifies when the Dicode IAM token is required again', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: 'Dicode IAM login required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+
+    const listener = vi.fn()
+    const unsubscribe = onDicodeAuthRequired(listener)
+
+    try {
+      await expect(api.get('/api/sessions')).rejects.toThrow('Dicode IAM login required')
+    } finally {
+      unsubscribe()
+    }
+
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(listener.mock.calls[0]?.[0]).toMatchObject({
+      status: 401,
+      message: 'Dicode IAM login required',
+    })
   })
 
   it('does not recursively report diagnostics endpoint failures', async () => {

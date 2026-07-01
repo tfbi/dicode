@@ -11,6 +11,7 @@ type DicodeAuthState = {
   fetchStatus: () => Promise<DicodeAuthStatus>
   login: () => Promise<void>
   logout: () => Promise<void>
+  requireLogin: () => void
 }
 
 function applyAuthStatus(status: DicodeAuthStatus) {
@@ -32,6 +33,18 @@ export const useDicodeAuthStore = create<DicodeAuthState>((set, get) => ({
   isLoading: false,
   error: null,
 
+  requireLogin: () => {
+    setAuthToken(null)
+    const previousStatus = get().status
+    const status: DicodeAuthStatus = {
+      loggedIn: false,
+      required: previousStatus?.required ?? true,
+      configured: previousStatus?.configured ?? true,
+      ...(previousStatus?.hostUrl ? { hostUrl: previousStatus.hostUrl } : {}),
+    }
+    set({ status, isLoading: false, error: null })
+  },
+
   fetchStatus: async () => {
     set({ isLoading: true, error: null })
     try {
@@ -42,15 +55,8 @@ export const useDicodeAuthStore = create<DicodeAuthState>((set, get) => ({
     } catch (error) {
       setAuthToken(null)
       if (isLoginRequiredError(error)) {
-        const previousHostUrl = get().status?.hostUrl
-        const status: DicodeAuthStatus = {
-          loggedIn: false,
-          required: true,
-          configured: true,
-          ...(previousHostUrl ? { hostUrl: previousHostUrl } : {}),
-        }
-        set({ status, isLoading: false, error: null })
-        return status
+        get().requireLogin()
+        return get().status as DicodeAuthStatus
       }
       set({ isLoading: false, error: toErrorMessage(error, 'Failed to check login status.') })
       throw error

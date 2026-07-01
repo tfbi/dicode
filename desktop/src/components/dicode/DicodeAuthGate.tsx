@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { setAuthToken } from '../../api/client'
+import { onDicodeAuthRequired, setAuthToken } from '../../api/client'
 import { initializeDesktopServerUrl } from '../../lib/desktopRuntime'
 import { useDicodeAuthStore } from '../../stores/dicodeAuthStore'
 import { DicodeLoginView } from './DicodeLoginView'
@@ -18,6 +18,7 @@ export function DicodeAuthGate({ children }: DicodeAuthGateProps) {
   const error = useDicodeAuthStore((s) => s.error)
   const fetchStatus = useDicodeAuthStore((s) => s.fetchStatus)
   const login = useDicodeAuthStore((s) => s.login)
+  const requireLogin = useDicodeAuthStore((s) => s.requireLogin)
   const [ready, setReady] = useState(false)
   const [startupError, setStartupError] = useState<string | null>(null)
 
@@ -46,6 +47,12 @@ export function DicodeAuthGate({ children }: DicodeAuthGateProps) {
       cancelled = true
     }
   }, [fetchStatus])
+
+  useEffect(() => {
+    return onDicodeAuthRequired(() => {
+      requireLogin()
+    })
+  }, [requireLogin])
 
   if (!ready) {
     return (
