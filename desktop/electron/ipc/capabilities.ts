@@ -116,6 +116,7 @@ export const ELECTRON_IPC_VALIDATORS = {
   [ELECTRON_IPC_CHANNELS.appModeRestart]: noPayload,
   [ELECTRON_IPC_CHANNELS.adaptersRestartSidecar]: noPayload,
   [ELECTRON_IPC_CHANNELS.zoomSet]: zoomPayload,
+  [ELECTRON_IPC_CHANNELS.dicodeAuthOpen]: stringPayload,
 } satisfies Record<ElectronIpcChannel, Validator>
 
 const allowedChannels = new Set<ElectronIpcChannel>(

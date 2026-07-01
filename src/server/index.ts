@@ -9,6 +9,7 @@ import { handleApiRequest } from './router.js'
 import { handleWebSocket, type WebSocketData } from './ws/handler.js'
 import { resolveCors, type CorsResolution } from './middleware/cors.js'
 import { requireAuth, requireH5Token } from './middleware/auth.js'
+import { isDicodeAuthPublicPath, requireDicodeAuth, shouldRequireDicodeAuth } from './middleware/dicodeAuth.js'
 import { teamWatcher } from './services/teamWatcher.js'
 import { cronScheduler } from './services/cronScheduler.js'
 import { handleProxyRequest } from './proxy/handler.js'
@@ -187,6 +188,8 @@ export function startServer(port = PORT, host = HOST) {
           context: h5RequestContext,
         })
         const h5AccessControlBlocked = isH5AccessControlRequest(req, url, h5RequestContext)
+        const dicodeAuthRequired = shouldRequireDicodeAuth()
+        const dicodeAuthPublicPath = isDicodeAuthPublicPath(url.pathname)
 
         if (h5AccessControlBlocked) {
           return h5AccessControlRejectedResponse()
@@ -218,6 +221,12 @@ export function startServer(port = PORT, host = HOST) {
             }
           } else if (forceAuth) {
             const authError = await requireAuth(req, url.searchParams.get('token'))
+            if (authError) {
+              return withCors(authError, cors)
+            }
+          }
+          if (dicodeAuthRequired && !dicodeAuthPublicPath) {
+            const authError = await requireDicodeAuth(req, url.searchParams.get('token'))
             if (authError) {
               return withCors(authError, cors)
             }
@@ -258,7 +267,6 @@ export function startServer(port = PORT, host = HOST) {
               return withCors(authError, cors)
             }
           }
-
           const sessionId = url.pathname.split('/').pop() || ''
           if (!sessionId || !/^[0-9a-zA-Z_-]{1,64}$/.test(sessionId)) {
             return new Response('Invalid session ID', { status: 400 })
@@ -305,7 +313,6 @@ export function startServer(port = PORT, host = HOST) {
               return withCors(authError, cors)
             }
           }
-
           const response = await handlePreviewFs(
             url,
             async (sessionId) =>
@@ -336,7 +343,6 @@ export function startServer(port = PORT, host = HOST) {
               return withCors(authError, cors)
             }
           }
-
           const response = await handleLocalFile(url, req.headers)
           return withCors(response, cors)
         }
@@ -355,6 +361,12 @@ export function startServer(port = PORT, host = HOST) {
             }
           } else if (forceAuth) {
             const authError = await requireAuth(req)
+            if (authError) {
+              return withCors(authError, cors)
+            }
+          }
+          if (dicodeAuthRequired && !dicodeAuthPublicPath) {
+            const authError = await requireDicodeAuth(req)
             if (authError) {
               return withCors(authError, cors)
             }

@@ -44,6 +44,7 @@ import {
   MIN_WINDOW_HEIGHT,
   MIN_WINDOW_WIDTH,
 } from './services/windows'
+import { openDicodeAuthWindow } from './services/dicodeAuthWindow'
 
 let mainWindow: BrowserWindow | null = null
 let serverRuntime: ElectronServerRuntime | null = null
@@ -339,6 +340,8 @@ function registerIpcHandlers() {
   })
   registerHandler(ELECTRON_IPC_CHANNELS.adaptersRestartSidecar, () => getServerRuntime().restartAdaptersSidecars())
   registerHandler(ELECTRON_IPC_CHANNELS.zoomSet, (event, payload) => currentWindow(event).webContents.setZoomFactor(normalizeZoomFactor(payload)))
+  registerHandler(ELECTRON_IPC_CHANNELS.dicodeAuthOpen, (_event, payload) =>
+    openDicodeAuthWindow(BrowserWindow, String(payload)))
 }
 
 async function createMainWindow() {

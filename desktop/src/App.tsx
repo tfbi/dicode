@@ -2,6 +2,7 @@ import { AppShell } from './components/layout/AppShell'
 import { useScheduledTaskDesktopNotifications } from './hooks/useScheduledTaskDesktopNotifications'
 import { installDesktopNotificationNavigation } from './lib/desktopNotificationNavigation'
 import { useEffect } from 'react'
+import { DicodeAuthGate } from './components/dicode/DicodeAuthGate'
 
 export function App() {
   useScheduledTaskDesktopNotifications()
@@ -22,5 +23,9 @@ export function App() {
       cleanup?.()
     }
   }, [])
-  return <AppShell />
+  return (
+    <DicodeAuthGate>
+      <AppShell />
+    </DicodeAuthGate>
+  )
 }

@@ -162,5 +162,8 @@ export function createElectronHost(bridge: ElectronHostBridge): DesktopHost {
     zoom: {
       set: level => invoke(ELECTRON_IPC_CHANNELS.zoomSet, level),
     },
+    dicodeAuth: {
+      open: loginUrl => invoke(ELECTRON_IPC_CHANNELS.dicodeAuthOpen, loginUrl),
+    },
   }
 }
