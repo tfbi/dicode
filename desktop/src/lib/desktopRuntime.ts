@@ -165,7 +165,6 @@ export async function initializeDesktopServerUrl() {
   try {
     const serverUrl = await host.runtime.getServerUrl()
     setBaseUrl(serverUrl)
-    setAuthToken(null)
     await waitForHealth(serverUrl)
     markDesktopServerReady()
     return serverUrl
