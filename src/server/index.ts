@@ -313,6 +313,12 @@ export function startServer(port = PORT, host = HOST) {
               return withCors(authError, cors)
             }
           }
+          if (dicodeAuthRequired && !dicodeAuthPublicPath) {
+            const authError = await requireDicodeAuth(req)
+            if (authError) {
+              return withCors(authError, cors)
+            }
+          }
           const response = await handlePreviewFs(
             url,
             async (sessionId) =>
@@ -339,6 +345,12 @@ export function startServer(port = PORT, host = HOST) {
             }
           } else if (forceAuth) {
             const authError = await requireAuth(req)
+            if (authError) {
+              return withCors(authError, cors)
+            }
+          }
+          if (dicodeAuthRequired && !dicodeAuthPublicPath) {
+            const authError = await requireDicodeAuth(req)
             if (authError) {
               return withCors(authError, cors)
             }
@@ -403,6 +415,12 @@ export function startServer(port = PORT, host = HOST) {
             }
           } else if (forceAuth) {
             const authError = await requireAuth(req)
+            if (authError) {
+              return withCors(authError, cors)
+            }
+          }
+          if (dicodeAuthRequired && !dicodeAuthPublicPath) {
+            const authError = await requireDicodeAuth(req)
             if (authError) {
               return withCors(authError, cors)
             }
