@@ -30,7 +30,6 @@ import type { ThemeMode, NetworkProxyMode, WebSearchMode, AppMode, ChatSendBehav
 import type { Locale } from '../i18n'
 import type { SavedProvider, UpdateProviderInput, ProviderTestResult, ModelMapping, Model1mSupport, ApiFormat, ProviderAuthStrategy } from '../types/provider'
 import type { ProviderPreset } from '../types/providerPreset'
-import { AdapterSettings } from './AdapterSettings'
 import { useAgentStore } from '../stores/agentStore'
 import { useSessionStore } from '../stores/sessionStore'
 import type { AgentDefinition, AgentSource } from '../api/agents'
@@ -185,7 +184,7 @@ export function Settings() {
 
   useEffect(() => {
     if (!pendingSettingsTab) return
-    setActiveTab(pendingSettingsTab)
+    setActiveTab(pendingSettingsTab === 'adapters' ? 'general' : pendingSettingsTab)
     useUIStore.getState().setPendingSettingsTab(null)
   }, [pendingSettingsTab])
 
@@ -198,7 +197,6 @@ export function Settings() {
             <TabButton icon="dns" label={t('settings.tab.providers')} active={activeTab === 'providers'} onClick={() => setActiveTab('providers')} />
             <TabButton icon="tune" label={t('settings.tab.general')} active={activeTab === 'general'} onClick={() => setActiveTab('general')} />
             <TabButton icon="qr_code_2" label={t('settings.tab.h5Access')} active={activeTab === 'h5Access'} onClick={() => setActiveTab('h5Access')} />
-            <TabButton icon="chat" label={t('settings.tab.adapters')} active={activeTab === 'adapters'} onClick={() => setActiveTab('adapters')} />
             <TabButton icon="terminal" label={t('settings.tab.terminal')} active={activeTab === 'terminal'} onClick={() => setActiveTab('terminal')} />
             <TabButton icon="dns" label={t('settings.tab.mcp')} active={activeTab === 'mcp'} onClick={() => setActiveTab('mcp')} />
             <TabButton icon="smart_toy" label={t('settings.tab.agents')} active={activeTab === 'agents'} onClick={() => setActiveTab('agents')} />
@@ -221,7 +219,6 @@ export function Settings() {
           {activeTab === 'activity' && <ActivitySettings />}
           {activeTab === 'general' && <GeneralSettings />}
           {activeTab === 'h5Access' && <H5AccessSettings />}
-          {activeTab === 'adapters' && <AdapterSettings />}
           {activeTab === 'terminal' && <TerminalSettings showPreferences />}
           {activeTab === 'mcp' && <McpSettings />}
           {activeTab === 'agents' && <AgentsSettings />}

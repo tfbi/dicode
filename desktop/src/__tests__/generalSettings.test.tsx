@@ -369,6 +369,16 @@ describe('Settings > General tab', () => {
     expect(toggle).toBeChecked()
   })
 
+  it('hides IM adapter settings and redirects stale adapter tab requests to General', () => {
+    useUIStore.setState({ pendingSettingsTab: 'adapters' })
+
+    render(<Settings />)
+
+    expect(screen.queryByText('IM Adapters')).not.toBeInTheDocument()
+    expect(screen.queryByText('Adapter Settings Mock')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Skip WebFetch domain preflight')).toBeInTheDocument()
+  })
+
   it('offers the pure white appearance theme', () => {
     render(<Settings />)
 
