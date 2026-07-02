@@ -50,9 +50,17 @@ export function DicodeAuthGate({ children }: DicodeAuthGateProps) {
 
   useEffect(() => {
     return onDicodeAuthRequired(() => {
-      requireLogin()
+      void fetchStatus()
+        .then((nextStatus) => {
+          if (!nextStatus.loggedIn) {
+            requireLogin()
+          }
+        })
+        .catch(() => {
+          requireLogin()
+        })
     })
-  }, [requireLogin])
+  }, [fetchStatus, requireLogin])
 
   if (!ready) {
     return (
