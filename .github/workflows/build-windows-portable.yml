@@ -1,0 +1,92 @@
+name: Build Windows Portable
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-windows-portable-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./desktop/package.json').version")
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install root dependencies
+        run: bun install
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: bun install
+
+      - name: Build sidecars
+        working-directory: desktop
+        env:
+          BUN_INSTALL_CACHE_DIR: ${{ runner.temp }}/bun-install-cache
+          SIDECAR_TARGET_TRIPLE: x86_64-pc-windows-msvc
+        run: bun run build:sidecars
+
+      - name: Build renderer and Electron bundles
+        working-directory: desktop
+        run: |
+          bun run build
+          bun run build:electron
+
+      - name: Build Windows unpacked app
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: node ./node_modules/electron-builder/out/cli/cli.js --win dir --x64 --publish never
+
+      - name: Verify portable app structure
+        run: bun run test:package-smoke --platform windows --package-kind dir --artifacts-dir desktop/build-artifacts/electron
+
+      - name: Create portable zip
+        id: package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.value }}'
+          $packageName = "Dicode-$version-win-x64-portable"
+          $stagingRoot = 'desktop/build-artifacts/windows-portable'
+          $stagingDir = Join-Path $stagingRoot $packageName
+          $zipPath = Join-Path $stagingRoot "$packageName.zip"
+
+          Remove-Item -LiteralPath $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
+          Copy-Item -Path 'desktop/build-artifacts/electron/win-unpacked/*' -Destination $stagingDir -Recurse -Force
+          Compress-Archive -Path $stagingDir -DestinationPath $zipPath -Force
+
+          "zip_path=$zipPath" >> $env:GITHUB_OUTPUT
+          Get-ChildItem -LiteralPath $stagingRoot
+
+      - name: Upload portable zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dicode-${{ steps.version.outputs.value }}-win-x64-portable
+          path: ${{ steps.package.outputs.zip_path }}
+          retention-days: 14
+          if-no-files-found: error
