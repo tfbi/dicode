@@ -286,6 +286,7 @@ type PersistedWorktreeSession = {
 type SessionListSummary = {
   title: string
   createdAt: string
+  modifiedAt: string
   messageCount: number
   workDir: string | null
   permissionMode?: string
@@ -367,6 +368,64 @@ export class SessionService {
         ? { ...summary.worktreeSession }
         : summary.worktreeSession,
     }
+  }
+
+  private latestTimestamp(current: string | null, candidate: unknown): string | null {
+    if (typeof candidate !== 'string') return current
+    const candidateTime = Date.parse(candidate)
+    if (!Number.isFinite(candidateTime)) return current
+    if (!current) return candidate
+    const currentTime = Date.parse(current)
+    return !Number.isFinite(currentTime) || candidateTime > currentTime
+      ? candidate
+      : current
+  }
+
+  private metadataMatchesLaunchInfo(
+    launchInfo: SessionLaunchInfo | null,
+    metadata: {
+      workDir: string
+      repository?: PreparedSessionWorkspace['repository']
+      permissionMode?: string
+      runtimeProviderId?: string | null
+      runtimeModelId?: string
+      effortLevel?: string
+    },
+  ): boolean {
+    if (!launchInfo) return false
+    if (normalizeDriveRootPathForPlatform(launchInfo.workDir) !== metadata.workDir) {
+      return false
+    }
+    if (
+      JSON.stringify(launchInfo.repository ?? null) !==
+      JSON.stringify(metadata.repository ?? null)
+    ) {
+      return false
+    }
+    if (
+      metadata.permissionMode &&
+      VALID_SESSION_PERMISSION_MODES.has(metadata.permissionMode) &&
+      launchInfo.permissionMode !== metadata.permissionMode
+    ) {
+      return false
+    }
+    if (
+      metadata.runtimeProviderId !== undefined &&
+      launchInfo.runtimeProviderId !== metadata.runtimeProviderId
+    ) {
+      return false
+    }
+    if (metadata.runtimeModelId && launchInfo.runtimeModelId !== metadata.runtimeModelId) {
+      return false
+    }
+    if (
+      metadata.effortLevel &&
+      VALID_SESSION_EFFORT_LEVELS.has(metadata.effortLevel) &&
+      launchInfo.effortLevel !== metadata.effortLevel
+    ) {
+      return false
+    }
+    return true
   }
 
   private async getCachedSessionListSummary(
@@ -469,10 +528,11 @@ export class SessionService {
   private async scanSessionListSummary(
     filePath: string,
     projectDir: string,
-    stat: { birthtime: Date },
+    stat: { birthtime: Date; mtime: Date },
   ): Promise<SessionListSummary> {
     let createdAt = stat.birthtime.toISOString()
     let hasCreatedAt = false
+    let modifiedAt: string | null = null
     let messageCount = 0
     let firstUserTitle: string | null = null
     let goalTitle: string | null = null
@@ -515,6 +575,9 @@ export class SessionService {
           entry.message?.role
         ) {
           messageCount += 1
+          if (!entry.isMeta) {
+            modifiedAt = this.latestTimestamp(modifiedAt, entry.timestamp)
+          }
         }
 
         if (entry.type === 'session-meta') {
@@ -602,6 +665,7 @@ export class SessionService {
         firstUserTitle ||
         'Untitled Session',
       createdAt,
+      modifiedAt: modifiedAt ?? stat.mtime.toISOString(),
       messageCount,
       workDir: latestWorkDir || latestCwd || this.desanitizePath(projectDir),
       ...(permissionMode ? { permissionMode } : {}),
@@ -631,7 +695,7 @@ export class SessionService {
     const summary = await this.scanSessionListSummary(filePath, projectPath, stat)
     return {
       title: summary.title,
-      modifiedAt: stat.mtime.toISOString(),
+      modifiedAt: summary.modifiedAt,
       workDir: summary.workDir ?? null,
       projectPath,
     }
@@ -2163,20 +2227,44 @@ export class SessionService {
       }
     }))).filter((item): item is NonNullable<typeof item> => item !== null)
 
-    filesWithStats.sort((a, b) => b.stat.mtime.getTime() - a.stat.mtime.getTime())
+    const summarizedFiles: Array<{
+      filePath: string
+      projectDir: string
+      sessionId: string
+      stat: Stats
+      summary: SessionListSummary
+    }> = []
+    for (const item of filesWithStats) {
+      try {
+        summarizedFiles.push({
+          ...item,
+          summary: await this.getCachedSessionListSummary(
+            item.filePath,
+            item.projectDir,
+            item.stat,
+          ),
+        })
+      } catch {
+        // Skip unreadable files
+      }
+    }
 
-    const total = filesWithStats.length
+    summarizedFiles.sort(
+      (a, b) =>
+        Date.parse(b.summary.modifiedAt) - Date.parse(a.summary.modifiedAt),
+    )
+
+    const total = summarizedFiles.length
     const offset = options?.offset ?? 0
     const limit = options?.limit ?? 50
-    const paginatedFiles = filesWithStats.slice(offset, offset + limit)
+    const paginatedFiles = summarizedFiles.slice(offset, offset + limit)
 
     // Build session list items with metadata from file stats & a streaming
     // transcript summary. Keep this sequential so large JSONL files are not
     // loaded into memory concurrently by the sidebar's frequent refresh.
     const items: SessionListItem[] = []
-    for (const { filePath, projectDir, sessionId, stat } of paginatedFiles) {
+    for (const { projectDir, sessionId, summary } of paginatedFiles) {
       try {
-        const summary = await this.getCachedSessionListSummary(filePath, projectDir, stat)
         const workDir = summary.workDir
         const projectRoot = await this.resolveProjectRootFromSessionMetadata({
           worktreeSession: summary.worktreeSession,
@@ -2190,7 +2278,7 @@ export class SessionService {
           id: sessionId,
           title: summary.title,
           createdAt: summary.createdAt,
-          modifiedAt: stat.mtime.toISOString(),
+          modifiedAt: summary.modifiedAt,
           messageCount: summary.messageCount,
           projectPath: projectDir,
           projectRoot,
@@ -2604,6 +2692,18 @@ export class SessionService {
     const normalizedWorkDir = normalizeDriveRootPathForPlatform(metadata.workDir)
     const targetProjectDir = this.sanitizePath(normalizedWorkDir)
     const targetFilePath = path.join(this.getProjectsDir(), targetProjectDir, `${sessionId}.jsonl`)
+
+    if (!metadata.customTitle) {
+      const launchInfo = await this.getSessionLaunchInfo(sessionId)
+      if (this.metadataMatchesLaunchInfo(launchInfo, {
+        ...metadata,
+        workDir: normalizedWorkDir,
+        repository,
+      })) {
+        return
+      }
+    }
+
     await fs.mkdir(path.dirname(targetFilePath), { recursive: true })
 
     await this.appendJsonlEntry(targetFilePath, {

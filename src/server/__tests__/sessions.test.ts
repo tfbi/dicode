@@ -551,7 +551,7 @@ describe('SessionService', () => {
     expect(page2.sessions).toHaveLength(1)
   })
 
-  it('should only scan the requested page when listing many sessions', async () => {
+  it('should scan summaries before pagination so metadata-only writes cannot skew order', async () => {
     for (let i = 0; i < 12; i++) {
       const id = `1000000${i.toString(16)}-bbbb-cccc-dddd-eeeeeeeeeeee`
       const filePath = await writeSessionFile('-tmp-many-sessions', id, [
@@ -576,7 +576,49 @@ describe('SessionService', () => {
 
     expect(result.total).toBe(12)
     expect(result.sessions).toHaveLength(3)
-    expect(scanCount).toBe(3)
+    expect(scanCount).toBe(12)
+  })
+
+  it('should ignore metadata-only writes when sorting and dating the session list', async () => {
+    const activeSessionId = '10000000-aaaa-bbbb-cccc-eeeeeeeeeeee'
+    const viewedHistorySessionId = '10000001-aaaa-bbbb-cccc-eeeeeeeeeeee'
+    const activeFilePath = await writeSessionFile('-tmp-viewed-history-sessions', activeSessionId, [
+      makeSnapshotEntry(),
+      {
+        ...makeUserEntry('Recent real work'),
+        timestamp: '2026-07-02T02:00:00.000Z',
+      },
+      {
+        ...makeAssistantEntry('Recent reply'),
+        timestamp: '2026-07-02T02:05:00.000Z',
+      },
+    ])
+    const historyFilePath = await writeSessionFile('-tmp-viewed-history-sessions', viewedHistorySessionId, [
+      makeSnapshotEntry(),
+      {
+        ...makeUserEntry('Older work'),
+        timestamp: '2026-07-01T02:00:00.000Z',
+      },
+      {
+        ...makeAssistantEntry('Older reply'),
+        timestamp: '2026-07-01T02:05:00.000Z',
+      },
+      {
+        ...makeSessionMetaEntry('/tmp/viewed-history'),
+        timestamp: '2026-07-02T03:00:00.000Z',
+      },
+    ])
+    await fs.utimes(activeFilePath, new Date('2026-07-02T02:05:00.000Z'), new Date('2026-07-02T02:05:00.000Z'))
+    await fs.utimes(historyFilePath, new Date('2026-07-02T03:00:00.000Z'), new Date('2026-07-02T03:00:00.000Z'))
+
+    const result = await service.listSessions({ project: '/tmp/viewed-history-sessions', limit: 2 })
+
+    expect(result.sessions.map((session) => session.id)).toEqual([
+      activeSessionId,
+      viewedHistorySessionId,
+    ])
+    expect(result.sessions.find((session) => session.id === viewedHistorySessionId)?.modifiedAt)
+      .toBe('2026-07-01T02:05:00.000Z')
   })
 
   it('should reuse cached list metadata for repeated requests', async () => {
@@ -604,7 +646,7 @@ describe('SessionService', () => {
     const second = await service.listSessions({ limit: 3, offset: 0 })
 
     expect(first.sessions.map((session) => session.id)).toEqual(second.sessions.map((session) => session.id))
-    expect(scanCount).toBe(3)
+    expect(scanCount).toBe(5)
   })
 
   it('should reuse unchanged file summaries after the list response cache is cleared', async () => {
@@ -1343,6 +1385,42 @@ describe('SessionService', () => {
 
     launchInfo = await service.getSessionLaunchInfo(sessionId)
     expect(launchInfo?.permissionMode).toBe('plan')
+  })
+
+  it('should not append duplicate runtime metadata when it already matches', async () => {
+    const workDir = '/tmp/runtime-idempotent'
+    const sessionId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    const filePath = await writeSessionFile(sanitizePath(workDir), sessionId, [
+      makeSnapshotEntry(),
+      {
+        ...makeSessionMetaEntry(workDir),
+        runtimeProviderId: 'provider-a',
+        runtimeModelId: 'model-a',
+        effortLevel: 'max',
+      },
+      makeUserEntry('Runtime metadata should stay stable'),
+    ])
+    const before = await fs.readFile(filePath, 'utf-8')
+
+    await service.appendSessionMetadata(sessionId, {
+      workDir,
+      runtimeProviderId: 'provider-a',
+      runtimeModelId: 'model-a',
+      effortLevel: 'max',
+    })
+
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+
+    await service.appendSessionMetadata(sessionId, {
+      workDir,
+      runtimeProviderId: 'provider-a',
+      runtimeModelId: 'model-b',
+      effortLevel: 'max',
+    })
+
+    const afterChange = await fs.readFile(filePath, 'utf-8')
+    expect(afterChange).not.toBe(before)
+    expect(afterChange).toContain('"runtimeModelId":"model-b"')
   })
 
   it('should remove stale placeholder files after native CLI worktree startup', async () => {
