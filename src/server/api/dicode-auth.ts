@@ -42,6 +42,9 @@ export async function handleDicodeAuthApi(
 
     return Response.json({ error: 'Not Found' }, { status: 404 })
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith('IAM login failed')) {
+      return errorResponse(ApiError.badRequest(error.message))
+    }
     return errorResponse(error)
   }
 }

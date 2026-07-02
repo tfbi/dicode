@@ -203,4 +203,12 @@ describe('DicodeAuthService', () => {
       .rejects
       .toThrow('IAM login failed')
   })
+
+  test('exchangeCodeAndState rejects invalid IAM JSON response with login failure message', async () => {
+    service.setFetchFn(async () => new Response('<html>login error</html>', { status: 200 }))
+
+    await expect(service.exchangeCodeAndState({ code: 'bad', state: 'bad' }))
+      .rejects
+      .toThrow('IAM login failed: invalid JSON response from IAM token endpoint')
+  })
 })

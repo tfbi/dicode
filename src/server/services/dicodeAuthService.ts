@@ -151,7 +151,7 @@ export class DicodeAuthService {
     if (!res.ok) {
       throw new Error(`IAM login failed (${res.status}): ${await res.text()}`)
     }
-    const body = await res.json() as IamTokenResponse
+    const body = await readIamTokenResponse(res)
     if (body.code !== 0) {
       throw new Error(`IAM login failed: ${body.message ?? body.msg ?? body.code}`)
     }
@@ -285,6 +285,14 @@ export class DicodeAuthService {
     } catch {
       return undefined
     }
+  }
+}
+
+async function readIamTokenResponse(res: Response): Promise<IamTokenResponse> {
+  try {
+    return await res.json() as IamTokenResponse
+  } catch {
+    throw new Error('IAM login failed: invalid JSON response from IAM token endpoint')
   }
 }
 

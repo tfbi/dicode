@@ -88,6 +88,25 @@ describe('Dicode auth API', () => {
     expect(JSON.stringify(body)).not.toContain('refresh-token')
   })
 
+  test('POST /api/dicode-auth/exchange surfaces IAM rejection message', async () => {
+    dicodeAuthService.setFetchFn(async () => new Response(JSON.stringify({
+      code: 401,
+      msg: 'invalid code or state',
+    }), { status: 200 }))
+    const { req, url, segments } = buildReq(
+      'POST',
+      '/api/dicode-auth/exchange?code=bad-code&state=bad-state',
+    )
+
+    const res = await handleDicodeAuthApi(req, url, segments)
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({
+      error: 'BAD_REQUEST',
+      message: 'IAM login failed: invalid code or state',
+    })
+  })
+
   test('GET /api/dicode-auth/me returns loggedIn=false when no token is stored', async () => {
     const { req, url, segments } = buildReq('GET', '/api/dicode-auth/me')
 
