@@ -42,10 +42,6 @@ jobs:
         working-directory: desktop
         run: bun install
 
-      - name: Install adapter dependencies
-        working-directory: adapters
-        run: bun install
-
       - name: Build sidecars
         working-directory: desktop
         env:
