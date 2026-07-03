@@ -15,6 +15,7 @@ import type {
   OpenAITool,
 } from './types.js'
 import { stripLeadingBillingHeader } from './billingHeader.js'
+import { normalizeOpenAIReasoningEffort } from './effort.js'
 
 type OpenAIChatImageContentMode = 'vision' | 'text_only'
 
@@ -113,6 +114,10 @@ export function anthropicToOpenaiChat(
     if (options.passThinkingToggle) {
       result.thinking = { type: body.thinking.type }
     }
+  }
+  const outputConfigEffort = normalizeOpenAIReasoningEffort(body.output_config?.effort)
+  if (outputConfigEffort !== undefined) {
+    result.reasoning_effort = outputConfigEffort
   }
 
   return result

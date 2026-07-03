@@ -44,6 +44,8 @@ import { registerChangedFileAccessRoot, registerFilesystemAccessRoot } from '../
 import { findGitRoot } from '../../utils/git.js'
 import { traceCaptureService, trimTraceCallPreviews } from '../services/traceCaptureService.js'
 
+const DEFAULT_GIT_INFO_COMMAND_TIMEOUT_MS = 3_000
+
 const workspaceService = new WorkspaceService(
   async (sessionId) => (
     conversationService.getSessionWorkDir(sessionId) ||
@@ -267,22 +269,39 @@ async function getSessionMessages(sessionId: string): Promise<Response> {
 }
 
 async function getSessionTrace(sessionId: string): Promise<Response> {
-  const [trace, session] = await Promise.all([
+  const [trace, sessionMeta, messageSignature] = await Promise.all([
     traceCaptureService.getSessionTrace(sessionId),
-    sessionService.getSession(sessionId).catch(() => null),
+    getSessionTraceMeta(sessionId),
+    sessionService.getSessionMessagesSignature(sessionId),
   ])
   return Response.json({
     ...trace,
     calls: trace.calls.map((call) => trimTraceCallPreviews(call)),
-    session: session
+    messageSignature,
+    session: sessionMeta
       ? {
-          id: session.id,
-          title: session.title,
-          projectPath: session.projectPath,
-          workDir: session.workDir,
+          id: sessionId,
+          title: sessionMeta.title,
+          projectPath: sessionMeta.projectPath,
+          workDir: sessionMeta.workDir,
         }
       : null,
   })
+}
+
+async function getSessionTraceMeta(sessionId: string): Promise<{
+  title: string
+  projectPath: string
+  workDir: string | null
+} | null> {
+  const found = await sessionService.findSessionFile(sessionId)
+  if (!found) return null
+  const meta = await sessionService.getSessionTitleAndMeta(found.filePath)
+  return {
+    title: meta.title,
+    projectPath: meta.projectPath,
+    workDir: meta.workDir,
+  }
 }
 
 async function getSessionTraceCall(sessionId: string, callId: string | undefined): Promise<Response> {
@@ -438,6 +457,7 @@ async function deleteSession(sessionId: string): Promise<Response> {
   }
   closeSessionConnection(sessionId, 'session deleted')
   cleanupAdapterSessionMappings(sessionId)
+  recentProjectsCache = null
   return Response.json({ ok: true })
 }
 
@@ -460,6 +480,9 @@ async function batchDeleteSessions(req: Request): Promise<Response> {
   for (const sessionId of result.successes) {
     closeSessionConnection(sessionId, 'session deleted')
     cleanupAdapterSessionMappings(sessionId)
+  }
+  if (result.successes.length > 0) {
+    recentProjectsCache = null
   }
 
   return Response.json({
@@ -541,16 +564,23 @@ async function getSessionSlashCommands(sessionId: string): Promise<Response> {
 async function getSessionInspection(sessionId: string, url: URL): Promise<Response> {
   const includeContext = url.searchParams.get('includeContext') !== '0'
   const contextOnly = includeContext && url.searchParams.get('contextOnly') === '1'
+  let transcriptSnapshot: Awaited<ReturnType<typeof sessionService.getInspectionTranscriptSnapshot>> | undefined
+  const getTranscriptSnapshot = async () => {
+    if (transcriptSnapshot !== undefined) return transcriptSnapshot
+    transcriptSnapshot = await sessionService.getInspectionTranscriptSnapshot(sessionId).catch(() => null)
+    return transcriptSnapshot
+  }
+
+  const active = conversationService.hasSession(sessionId)
   const workDir =
     conversationService.getSessionWorkDir(sessionId) ||
-    await sessionService.getSessionWorkDir(sessionId)
+    (await getTranscriptSnapshot())?.launchInfo.workDir
 
   if (!workDir) {
     throw ApiError.notFound(`Session not found: ${sessionId}`)
   }
 
-  const active = conversationService.hasSession(sessionId)
-  const launchInfo = await sessionService.getSessionLaunchInfo(sessionId).catch(() => null)
+  const launchInfo = !active ? (await getTranscriptSnapshot())?.launchInfo ?? null : null
   const permissionMode = active
     ? conversationService.getSessionPermissionMode(sessionId)
     : launchInfo?.permissionMode ?? 'default'
@@ -558,7 +588,9 @@ async function getSessionInspection(sessionId: string, url: URL): Promise<Respon
     [...conversationService.getRecentSdkMessages(sessionId)]
     .reverse()
     .find((message) => message?.type === 'system' && message.subtype === 'init')
-  const transcriptMetadata = await sessionService.getTranscriptMetadata(sessionId)
+  const transcriptMetadata = !active || !initMessage
+    ? (await getTranscriptSnapshot())?.metadata ?? null
+    : null
   const cachedSlashCommands = getSlashCommands(sessionId)
   const skillSlashCommands = await listSkillSlashCommands(workDir)
   const fallbackSlashCommands = cachedSlashCommands.length > 0
@@ -586,13 +618,14 @@ async function getSessionInspection(sessionId: string, url: URL): Promise<Respon
     },
     errors: {},
   }
-  const transcriptUsage = await sessionService.getTranscriptUsage(sessionId)
-  const transcriptContextEstimate = await sessionService.getTranscriptContextEstimate(sessionId)
-  if (transcriptContextEstimate) {
-    response.contextEstimate = transcriptContextEstimate
-  }
 
   if (!active) {
+    const snapshot = await getTranscriptSnapshot()
+    const transcriptUsage = snapshot?.usage ?? null
+    const transcriptContextEstimate = snapshot?.contextEstimate ?? null
+    if (transcriptContextEstimate) {
+      response.contextEstimate = transcriptContextEstimate
+    }
     if (transcriptUsage) {
       response.usage = transcriptUsage
     }
@@ -614,6 +647,12 @@ async function getSessionInspection(sessionId: string, url: URL): Promise<Respon
     } catch (error) {
       errors.context = error instanceof Error ? error.message : String(error)
     }
+    if (!response.context) {
+      const transcriptContextEstimate = (await getTranscriptSnapshot())?.contextEstimate ?? null
+      if (transcriptContextEstimate) {
+        response.contextEstimate = transcriptContextEstimate
+      }
+    }
   } else {
     const basicControlTimeoutMs = includeContext ? 10_000 : 4_000
     const [usageResult, contextResult, mcpResult] = await Promise.allSettled([
@@ -629,11 +668,13 @@ async function getSessionInspection(sessionId: string, url: URL): Promise<Respon
     ])
 
     if (usageResult.status === 'fulfilled') {
+      const transcriptUsage = (await getTranscriptSnapshot())?.usage ?? null
       response.usage = chooseRicherUsage(
         { ...usageResult.value, source: 'current_process' },
         transcriptUsage,
       )
     } else {
+      const transcriptUsage = (await getTranscriptSnapshot())?.usage ?? null
       if (transcriptUsage) {
         response.usage = transcriptUsage
       } else {
@@ -648,6 +689,10 @@ async function getSessionInspection(sessionId: string, url: URL): Promise<Respon
       response.context = contextResult.value
     } else {
       errors.context = contextResult.reason instanceof Error ? contextResult.reason.message : String(contextResult.reason)
+      const transcriptContextEstimate = (await getTranscriptSnapshot())?.contextEstimate ?? null
+      if (transcriptContextEstimate) {
+        response.contextEstimate = transcriptContextEstimate
+      }
     }
 
     if (mcpResult.status === 'fulfilled' && response.status && typeof response.status === 'object') {
@@ -688,6 +733,66 @@ function sameResolvedPath(left: string | null | undefined, right: string | null 
   return path.resolve(left) === path.resolve(right)
 }
 
+function getGitInfoCommandTimeoutMs(): number {
+  const raw = process.env.CC_HAHA_GIT_INFO_TIMEOUT_MS
+  if (!raw) return DEFAULT_GIT_INFO_COMMAND_TIMEOUT_MS
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_GIT_INFO_COMMAND_TIMEOUT_MS
+}
+
+async function runGitInfoCommand(workDir: string, args: string[]): Promise<string | null> {
+  let proc: Bun.Subprocess<'ignore', 'pipe', 'ignore'> | null = null
+  let timeout: ReturnType<typeof setTimeout> | null = null
+
+  try {
+    proc = Bun.spawn(['git', ...args], {
+      cwd: workDir,
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'ignore',
+    })
+
+    const output = new Response(proc.stdout).text()
+      .then(async (text) => (await proc!.exited) === 0 ? text.trim() : null)
+      .catch(() => null)
+
+    const timedOut = new Promise<null>((resolve) => {
+      timeout = setTimeout(() => {
+        try {
+          proc?.kill()
+        } catch {
+          // Process may already have exited.
+        }
+        resolve(null)
+      }, getGitInfoCommandTimeoutMs())
+    })
+
+    return await Promise.race([output, timedOut])
+  } catch {
+    return null
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
+}
+
+function repoNameFromRemote(remote: string | null): string {
+  if (!remote) return ''
+  const match = remote.match(/\/([^/]+?)(?:\.git)?$/) || remote.match(/:([^/]+\/[^/]+?)(?:\.git)?$/)
+  return match ? match[1]! : ''
+}
+
+function ownerRepoNameFromRemote(remote: string | null): string | null {
+  if (!remote) return null
+  const match = remote.match(/:([^/]+\/[^/]+?)(?:\.git)?$/) || remote.match(/\/([^/]+\/[^/]+?)(?:\.git)?$/)
+  return match ? match[1]! : null
+}
+
+function repoNameFromWorkDir(workDir: string): string {
+  return path.basename(workDir) || workDir.split(/[\\/]/).filter(Boolean).at(-1) || ''
+}
+
 async function getGitInfo(sessionId: string): Promise<Response> {
   const workDir = conversationService.getSessionWorkDir(sessionId) || await sessionService.getSessionWorkDir(sessionId)
   if (!workDir) {
@@ -717,7 +822,7 @@ async function getGitInfo(sessionId: string): Promise<Response> {
   // spawns on non-git directories (each can take seconds as git searches upward).
   const gitRoot = findGitRoot(workDir)
   if (!gitRoot) {
-    const dirName = workDir.split('/').pop() || workDir.split(path.sep).pop() || ''
+    const dirName = repoNameFromWorkDir(workDir)
     return Response.json({
       branch: sessionBranch,
       repoName: dirName,
@@ -729,13 +834,7 @@ async function getGitInfo(sessionId: string): Promise<Response> {
 
   try {
     // Get branch name
-    const branchProc = Bun.spawn(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], {
-      cwd: workDir,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    const branchText = await new Response(branchProc.stdout).text()
-    const gitBranch = branchText.trim() || null
+    const gitBranch = await runGitInfoCommand(workDir, ['rev-parse', '--abbrev-ref', 'HEAD'])
     const materializedWorktree = !!worktree && (
       sameResolvedPath(workDir, worktree.path) ||
       sameResolvedPath(workDir, worktree.plannedPath)
@@ -747,32 +846,12 @@ async function getGitInfo(sessionId: string): Promise<Response> {
     )
 
     // Get repo name from remote or directory
-    let repoName = ''
-    try {
-      const remoteProc = Bun.spawn(['git', 'remote', 'get-url', 'origin'], {
-        cwd: workDir,
-        stdout: 'pipe',
-        stderr: 'pipe',
-      })
-      const remoteText = await new Response(remoteProc.stdout).text()
-      const remote = remoteText.trim()
-      // Extract repo name from URL: git@github.com:user/repo.git or https://...repo.git
-      const match = remote.match(/\/([^/]+?)(?:\.git)?$/) || remote.match(/:([^/]+\/[^/]+?)(?:\.git)?$/)
-      repoName = match ? match[1]! : ''
-    } catch {
-      // No remote, use directory name
-      const parts = workDir.split('/')
-      repoName = parts[parts.length - 1] || ''
-    }
+    const remote = await runGitInfoCommand(workDir, ['remote', 'get-url', 'origin'])
+    const repoName = repoNameFromRemote(remote) || repoNameFromWorkDir(workDir)
 
     // Get short status
-    const statusProc = Bun.spawn(['git', 'status', '--porcelain'], {
-      cwd: workDir,
-      stdout: 'pipe',
-      stderr: 'pipe',
-    })
-    const statusText = await new Response(statusProc.stdout).text()
-    const changedFiles = statusText.trim().split('\n').filter(Boolean).length
+    const statusText = await runGitInfoCommand(workDir, ['-c', 'core.fsmonitor=false', 'status', '--porcelain'])
+    const changedFiles = statusText?.split('\n').filter(Boolean).length ?? 0
 
     return Response.json({
       branch,
@@ -846,6 +925,8 @@ async function branchSession(req: Request, sessionId: string): Promise<Response>
       sourceRepository: launchInfo.repository,
       sourceWorktreeSession: launchInfo.worktreeSession,
     })
+
+    recentProjectsCache = null
 
     return Response.json({
       sessionId: result.sessionId,
@@ -1042,25 +1123,11 @@ async function getRecentProjects(url: URL): Promise<Response> {
         // Run branch + remote in parallel
         try {
           const [branchResult, remoteResult] = await Promise.all([
-            (async () => {
-              const branchProc = Bun.spawn(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], {
-                cwd: realPath, stdout: 'pipe', stderr: 'pipe',
-              })
-              return (await new Response(branchProc.stdout).text()).trim() || null
-            })(),
-            (async () => {
-              try {
-                const remoteProc = Bun.spawn(['git', 'remote', 'get-url', 'origin'], {
-                  cwd: realPath, stdout: 'pipe', stderr: 'pipe',
-                })
-                const remote = (await new Response(remoteProc.stdout).text()).trim()
-                const match = remote.match(/:([^/]+\/[^/]+?)(?:\.git)?$/) || remote.match(/\/([^/]+\/[^/]+?)(?:\.git)?$/)
-                return match ? match[1]! : null
-              } catch { return null }
-            })(),
+            runGitInfoCommand(realPath, ['rev-parse', '--abbrev-ref', 'HEAD']),
+            runGitInfoCommand(realPath, ['remote', 'get-url', 'origin']),
           ])
           branch = isDesktopWorktreeBranchName(branchResult) ? null : branchResult
-          repoName = remoteResult
+          repoName = ownerRepoNameFromRemote(remoteResult)
         } catch { /* git command failed */ }
       }
       

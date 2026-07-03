@@ -463,6 +463,8 @@ export const zh: Record<TranslationKey, string> = {
   'settings.providers.toolSearchEnabled': '启用 Tool Search',
   'settings.providers.toolSearchDesc': '按需加载 MCP 和延迟工具，减少首轮工具 schema token。弱模型或不支持 tool_reference 的服务商可以关闭。',
   'settings.providers.toolSearchUnsupported': '当前仅 Anthropic Messages 格式支持 Tool Search；OpenAI 代理格式会保留完整工具 schema。',
+  'settings.providers.disableExperimentalBetas': '关闭实验性 Beta 头',
+  'settings.providers.disableExperimentalBetasDesc': '为此服务商设置 CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1，避免第三方通道拒绝 beta API 形态。',
 
   // Settings > Permissions
   'settings.permissions.title': '权限模式',
@@ -983,6 +985,11 @@ export const zh: Record<TranslationKey, string> = {
   'settings.general.outputStyleSourceLocal': '项目本地风格',
   'settings.general.outputStyleSourcePolicy': '受管风格',
   'settings.general.outputStyleSourcePlugin': '插件风格',
+  'settings.general.defaultPermissionTitle': '默认会话权限',
+  'settings.general.defaultPermissionDescription': '选择桌面端新建聊天会话时默认使用的权限模式。',
+  'settings.general.defaultPermissionLabel': '新会话权限模式',
+  'settings.general.defaultPermissionHint': '每个会话内部仍然可以通过聊天区的权限选择器单独修改。',
+  'settings.general.defaultPermissionScope': '每个新会话的工作区',
   'settings.general.effortTitle': '推理强度',
   'settings.general.effortDescription': '控制模型使用的计算量。',
   'settings.general.effort.low': '低',
@@ -1085,6 +1092,8 @@ export const zh: Record<TranslationKey, string> = {
   'settings.general.h5AccessProxyNote': '当前使用的是反向代理 URL，手机扫码会经公网/隧道返回桌面端。请确认你的反代仍能工作。',
   'settings.general.networkTitle': '网络',
   'settings.general.networkDescription': '控制桌面会话发起的服务商 API 请求。',
+  'settings.general.networkProxyModeDirect': '直连',
+  'settings.general.networkProxyModeDirectDescription': '服务商 API 请求不使用应用进程继承到的代理。',
   'settings.general.networkProxyModeSystem': '系统代理',
   'settings.general.networkProxyModeSystemDescription': '使用应用进程继承到的代理设置。',
   'settings.general.networkProxyModeManual': '手动代理',
@@ -1916,7 +1925,6 @@ export const zh: Record<TranslationKey, string> = {
   'chat.retry.retrying': '正在重试…',
   'chat.fallback.title': '网络波动，已切换为非流式请求',
   'chat.fallback.detail': '响应将一次性返回，可能需要较长时间',
-  'chat.turnCompleted': '已完成，用时 {duration}',
 
   // ─── Tabs ──────────────────────────────────────
   'tabs.close': '关闭',

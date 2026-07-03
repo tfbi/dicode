@@ -184,6 +184,31 @@ describe('anthropicToOpenaiChat', () => {
     expect(anthropicToOpenaiChat(req, { passThinkingToggle: true }).thinking).toEqual({ type: 'disabled' })
   })
 
+  test('maps output_config effort to reasoning_effort for OpenAI-compatible chat providers', () => {
+    const req: AnthropicRequest = {
+      model: 'longcat',
+      max_tokens: 100,
+      messages: [{ role: 'user', content: 'Hi' }],
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'high' },
+    }
+
+    const result = anthropicToOpenaiChat(req)
+    expect(result.reasoning_effort).toBe('high')
+  })
+
+  test('clamps max output_config effort to high for OpenAI-compatible chat providers', () => {
+    const req: AnthropicRequest = {
+      model: 'longcat',
+      max_tokens: 100,
+      messages: [{ role: 'user', content: 'Hi' }],
+      output_config: { effort: 'max' },
+    }
+
+    const result = anthropicToOpenaiChat(req)
+    expect(result.reasoning_effort).toBe('high')
+  })
+
   test('assistant message with tool_use', () => {
     const req: AnthropicRequest = {
       model: 'gpt-4',
@@ -532,6 +557,31 @@ describe('anthropicToOpenaiResponses', () => {
       messages: [{ role: 'user', content: 'Hi' }],
       thinking: { type: 'enabled', budget_tokens: 10000 },
     }
+    const result = anthropicToOpenaiResponses(req)
+    expect(result.reasoning).toEqual({ effort: 'high' })
+  })
+
+  test('output_config effort → reasoning effort', () => {
+    const req: AnthropicRequest = {
+      model: 'gpt-5.5',
+      max_tokens: 100,
+      messages: [{ role: 'user', content: 'Hi' }],
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'high' },
+    }
+
+    const result = anthropicToOpenaiResponses(req)
+    expect(result.reasoning).toEqual({ effort: 'high' })
+  })
+
+  test('clamps max output_config effort for Responses API', () => {
+    const req: AnthropicRequest = {
+      model: 'gpt-5.5',
+      max_tokens: 100,
+      messages: [{ role: 'user', content: 'Hi' }],
+      output_config: { effort: 'max' },
+    }
+
     const result = anthropicToOpenaiResponses(req)
     expect(result.reasoning).toEqual({ effort: 'high' })
   })

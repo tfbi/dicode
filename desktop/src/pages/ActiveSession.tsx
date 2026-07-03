@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { Target } from 'lucide-react'
 import {
   SCHEDULED_TAB_ID,
@@ -127,7 +128,14 @@ function ActiveGoalStrip({
   )
 }
 
-function WorkspaceResizeHandle() {
+function getRenderedWorkspacePanelWidth(panelRef: RefObject<HTMLElement>, fallbackWidth: number) {
+  const renderedWidth = panelRef.current?.getBoundingClientRect().width ?? 0
+  return Number.isFinite(renderedWidth) && renderedWidth > 0
+    ? renderedWidth
+    : fallbackWidth
+}
+
+function WorkspaceResizeHandle({ panelRef }: { panelRef: RefObject<HTMLElement> }) {
   const t = useTranslation()
   const width = useWorkspacePanelStore((state) => state.width)
   const setWidth = useWorkspacePanelStore((state) => state.setWidth)
@@ -177,16 +185,17 @@ function WorkspaceResizeHandle() {
       onPointerDown={(event) => {
         if (event.button !== 0) return
         event.preventDefault()
-        setDragState({ startX: event.clientX, startWidth: width })
+        setDragState({ startX: event.clientX, startWidth: getRenderedWorkspacePanelWidth(panelRef, width) })
       }}
       onKeyDown={(event) => {
+        const renderedWidth = getRenderedWorkspacePanelWidth(panelRef, width)
         if (event.key === 'ArrowLeft') {
           event.preventDefault()
-          setWidth(width + WORKSPACE_RESIZE_STEP)
+          setWidth(renderedWidth + WORKSPACE_RESIZE_STEP)
         }
         if (event.key === 'ArrowRight') {
           event.preventDefault()
-          setWidth(width - WORKSPACE_RESIZE_STEP)
+          setWidth(renderedWidth - WORKSPACE_RESIZE_STEP)
         }
       }}
       className="group relative z-10 flex w-2 shrink-0 cursor-col-resize items-stretch justify-center bg-[var(--color-surface)] outline-none focus-visible:bg-[var(--color-surface-container)]"
@@ -278,6 +287,7 @@ function TerminalResizeHandle() {
 
 export function ActiveSession() {
   const isMobileLayout = useMobileViewport() && !isDesktopRuntime()
+  const workbenchPanelRef = useRef<HTMLElement>(null)
   const activeTabId = useTabStore((s) => s.activeTabId)
   const [dismissedBackgroundTaskKeysBySession, setDismissedBackgroundTaskKeysBySession] = useState<Record<string, Set<string>>>({})
   const activeTabType = useTabStore((s) => s.tabs.find((tab) => tab.sessionId === s.activeTabId)?.type ?? null)
@@ -640,8 +650,9 @@ export function ActiveSession() {
 
         {showWorkbench ? (
           <>
-            <WorkspaceResizeHandle />
+            <WorkspaceResizeHandle panelRef={workbenchPanelRef} />
             <aside
+              ref={workbenchPanelRef}
               data-testid="workbench-panel"
               className="flex h-full shrink-0 flex-col border-l border-[var(--color-border)] bg-[var(--color-surface)]"
               style={{ width: rightPanelWidth, maxWidth: '62%', minWidth: 'min(420px, 54%)' }}

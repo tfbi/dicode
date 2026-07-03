@@ -19,6 +19,7 @@ const {
   updateTabTitleMock,
   updateTabStatusMock,
   updateSessionTitleMock,
+  updateSessionMessageCountMock,
   updateSessionPermissionModeMock,
   sessionStoreSnapshot,
   cliTaskStoreSnapshot,
@@ -39,6 +40,7 @@ const {
   updateTabTitleMock: vi.fn(),
   updateTabStatusMock: vi.fn(),
   updateSessionTitleMock: vi.fn(),
+  updateSessionMessageCountMock: vi.fn(),
   updateSessionPermissionModeMock: vi.fn(),
   sessionStoreSnapshot: {
     sessions: [] as Array<{
@@ -105,6 +107,7 @@ vi.mock('./sessionStore', () => ({
     getState: () => ({
       sessions: sessionStoreSnapshot.sessions,
       updateSessionTitle: updateSessionTitleMock,
+      updateSessionMessageCount: updateSessionMessageCountMock,
       updateSessionPermissionMode: updateSessionPermissionModeMock,
     }),
   },
@@ -276,6 +279,7 @@ describe('chatStore history mapping', () => {
     updateTabTitleMock.mockReset()
     updateTabStatusMock.mockReset()
     updateSessionTitleMock.mockReset()
+    updateSessionMessageCountMock.mockReset()
     vi.mocked(sessionsApi.getMessages).mockReset()
     vi.mocked(sessionsApi.getMessages).mockResolvedValue({ messages: [] })
     sessionStoreSnapshot.sessions = []
@@ -572,7 +576,7 @@ describe('chatStore history mapping', () => {
     ])
   })
 
-  it('does not restore internal slash-command breadcrumbs as user history bubbles', () => {
+  it('restores slash-command metadata as readable history while skipping malformed breadcrumbs', () => {
     const messages: MessageEntry[] = [
       {
         id: 'agent-command-string',
@@ -600,6 +604,12 @@ describe('chatStore history mapping', () => {
         ],
       },
       {
+        id: 'malformed-command',
+        type: 'user',
+        timestamp: '2026-06-15T03:32:14.500Z',
+        content: '<command-name>/agent</command-name> malformed breadcrumb',
+      },
+      {
         id: 'transcript-user-1',
         type: 'user',
         timestamp: '2026-06-15T03:32:15.000Z',
@@ -609,11 +619,48 @@ describe('chatStore history mapping', () => {
 
     expect(mapHistoryMessagesToUiMessages(messages)).toMatchObject([
       {
+        id: 'agent-command-string',
+        type: 'user_text',
+        content: '/agent Plan 222',
+      },
+      {
+        id: 'agent-command-array',
+        type: 'user_text',
+        content: '/agent Plan 333',
+      },
+      {
         id: 'transcript-user-1',
         type: 'user_text',
         content: '继续处理这个问题',
       },
     ])
+  })
+
+  it('restores user-invoked skill command metadata as readable user history', () => {
+    const messages: MessageEntry[] = [
+      {
+        id: 'skill-command-user',
+        type: 'user',
+        timestamp: '2026-06-26T14:59:44.000Z',
+        content: [
+          '<command-message>frontend-design</command-message>',
+          '<command-name>/frontend-design</command-name>',
+          '<command-args>redesign the settings page</command-args>',
+        ].join('\n'),
+      },
+    ]
+
+    const mapped = mapHistoryMessagesToUiMessages(messages)
+
+    expect(mapped).toMatchObject([
+      {
+        id: 'skill-command-user',
+        type: 'user_text',
+        content: '/frontend-design redesign the settings page',
+        transcriptMessageId: 'skill-command-user',
+      },
+    ])
+    expect(mapped[0]?.type === 'user_text' ? mapped[0].content : '').not.toContain('<command-message>')
   })
 
   it('restores persisted image user messages as renderable attachments without exposing image metadata text', () => {
@@ -2405,6 +2452,13 @@ describe('chatStore history mapping', () => {
       type: 'set_permission_mode',
       mode: 'acceptEdits',
     })
+    expect(updateSessionPermissionModeMock).not.toHaveBeenCalled()
+
+    useChatStore.getState().handleServerMessage('session-1', {
+      type: 'permission_mode_changed',
+      mode: 'acceptEdits',
+    })
+
     expect(updateSessionPermissionModeMock).toHaveBeenCalledWith('session-1', 'acceptEdits')
   })
 
@@ -2852,6 +2906,56 @@ describe('chatStore history mapping', () => {
     expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).toHaveLength(0)
   })
 
+  it('keeps auto-dream background tasks out of the transcript while tracking lifecycle', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-04-06T00:00:01.000Z'))
+
+    useChatStore.setState({
+      sessions: {
+        [TEST_SESSION_ID]: makeSession(),
+      },
+    })
+
+    useChatStore.getState().handleServerMessage(TEST_SESSION_ID, {
+      type: 'system_notification',
+      subtype: 'task_started',
+      data: {
+        task_id: 'dream-task-1',
+        task_type: 'dream',
+        description: 'dreaming',
+      },
+    })
+
+    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.backgroundAgentTasks?.['dream-task-1']).toMatchObject({
+      taskId: 'dream-task-1',
+      status: 'running',
+      taskType: 'dream',
+      description: 'dreaming',
+    })
+    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).toHaveLength(0)
+
+    vi.setSystemTime(new Date('2026-04-06T00:00:02.000Z'))
+
+    useChatStore.getState().handleServerMessage(TEST_SESSION_ID, {
+      type: 'system_notification',
+      subtype: 'task_notification',
+      data: {
+        task_id: 'dream-task-1',
+        status: 'completed',
+        summary: 'Auto-dream completed',
+      },
+    })
+
+    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.backgroundAgentTasks?.['dream-task-1']).toMatchObject({
+      status: 'completed',
+      taskType: 'dream',
+      summary: 'Auto-dream completed',
+    })
+    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).toHaveLength(0)
+
+    vi.useRealTimers()
+  })
+
   it('clears local desktop chat state when the server confirms /clear', () => {
     vi.useFakeTimers()
 
@@ -2900,6 +3004,8 @@ describe('chatStore history mapping', () => {
     expect(session?.streamingResponseChars).toBe(0)
     expect(session?.slashCommands).toEqual([])
     expect(clearTasksMock).toHaveBeenCalledWith(TEST_SESSION_ID)
+    expect(updateSessionTitleMock).toHaveBeenCalledWith(TEST_SESSION_ID, 'New Session')
+    expect(updateSessionMessageCountMock).toHaveBeenCalledWith(TEST_SESSION_ID, 0)
 
     vi.advanceTimersByTime(60)
     expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.streamingText).toBe('')
@@ -3290,7 +3396,7 @@ describe('chatStore history mapping', () => {
     vi.useRealTimers()
   })
 
-  it('adds a completed turn duration after a running response finishes', () => {
+  it('does not append completed turn duration after a running response finishes', () => {
     useChatStore.setState({
       sessions: {
         [TEST_SESSION_ID]: makeSession({
@@ -3312,14 +3418,13 @@ describe('chatStore history mapping', () => {
         type: 'assistant_text',
         content: 'Finished answer',
       },
-      {
-        type: 'system',
-        content: 'Completed in 1m 5s',
-      },
     ])
+    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'system', content: expect.stringContaining('Completed in') }),
+    ]))
   })
 
-  it('localizes completed turn duration units', () => {
+  it('does not append localized completed turn duration after a running response finishes', () => {
     useSettingsStore.setState({ locale: 'zh' })
     useChatStore.setState({
       sessions: {
@@ -3342,11 +3447,10 @@ describe('chatStore history mapping', () => {
         type: 'assistant_text',
         content: 'Finished answer',
       },
-      {
-        type: 'system',
-        content: '已完成，用时 1 分 5 秒',
-      },
     ])
+    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'system', content: expect.stringContaining('已完成，用时') }),
+    ]))
   })
 
   it('keeps background agent sessions visibly running when the foreground turn completes', () => {
@@ -3391,7 +3495,7 @@ describe('chatStore history mapping', () => {
     expect(updateTabStatusMock).toHaveBeenLastCalledWith(TEST_SESSION_ID, 'running')
   })
 
-  it('marks the tab idle and appends the delayed completion when the last background agent task finishes after the foreground turn', () => {
+  it('marks the tab idle without appending delayed completion when the last background agent task finishes after the foreground turn', () => {
     useChatStore.setState({
       sessions: {
         [TEST_SESSION_ID]: makeSession({
@@ -3432,8 +3536,8 @@ describe('chatStore history mapping', () => {
     })
 
     expect(updateTabStatusMock).toHaveBeenLastCalledWith(TEST_SESSION_ID, 'idle')
-    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: 'system', content: 'Completed in 1m 5s' }),
+    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'system', content: expect.stringContaining('Completed in') }),
     ]))
   })
 
@@ -3495,7 +3599,7 @@ describe('chatStore history mapping', () => {
     expect(updateTabStatusMock).toHaveBeenLastCalledWith(TEST_SESSION_ID, 'idle')
   })
 
-  it('flushes a delayed completion before a new user turn while background tasks keep running', () => {
+  it('does not flush a delayed completion before a new user turn while background tasks keep running', () => {
     useChatStore.setState({
       sessions: {
         [TEST_SESSION_ID]: makeSession({
@@ -3526,7 +3630,6 @@ describe('chatStore history mapping', () => {
 
     expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).toMatchObject([
       { type: 'assistant_text', content: 'Finished answer' },
-      { type: 'system', content: 'Completed in 1m 5s' },
       { type: 'user_text', content: 'Continue with next step' },
     ])
 
@@ -3543,7 +3646,7 @@ describe('chatStore history mapping', () => {
 
     const completedRows = useChatStore.getState().sessions[TEST_SESSION_ID]?.messages
       .filter((message) => message.type === 'system' && message.content === 'Completed in 1m 5s')
-    expect(completedRows).toHaveLength(1)
+    expect(completedRows).toHaveLength(0)
   })
 
   it('tracks API retry status until the request finishes', () => {

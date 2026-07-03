@@ -8,6 +8,7 @@ import {
   MIN_AI_REQUEST_TIMEOUT_MS,
   getManualNetworkProxyUrl,
   buildNetworkEnvironment,
+  getNetworkProxyFetchOptions,
   loadNetworkSettings,
   normalizeNetworkSettings,
 } from '../services/networkSettings.js'
@@ -37,14 +38,74 @@ describe('network settings', () => {
   beforeEach(setup)
   afterEach(teardown)
 
-  it('normalizes missing settings to the 600s system-proxy default', () => {
+  it('normalizes missing settings to the 600s direct-proxy default', () => {
     expect(normalizeNetworkSettings({})).toEqual({
       aiRequestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
       proxy: {
-        mode: 'system',
+        mode: 'direct',
         url: '',
       },
     })
+  })
+
+  it('clears inherited proxy environment for direct provider requests', () => {
+    const settings = normalizeNetworkSettings({
+      network: {
+        proxy: {
+          mode: 'direct',
+          url: '',
+        },
+      },
+    })
+
+    expect(buildNetworkEnvironment(settings, {
+      HTTP_PROXY: 'http://127.0.0.1:1181',
+      HTTPS_PROXY: 'http://127.0.0.1:1181',
+      http_proxy: 'http://127.0.0.1:1181',
+      https_proxy: 'http://127.0.0.1:1181',
+    })).toMatchObject({
+      HTTP_PROXY: '',
+      HTTPS_PROXY: '',
+      http_proxy: '',
+      https_proxy: '',
+    })
+    expect(getNetworkProxyFetchOptions(settings, 'https://api.example.com/v1/messages').proxy).toBeUndefined()
+  })
+
+  it('keeps inherited process proxy for explicit system provider requests', () => {
+    const settings = normalizeNetworkSettings({
+      network: {
+        proxy: {
+          mode: 'system',
+          url: '',
+        },
+      },
+    })
+
+    const originalHttpProxy = process.env.HTTP_PROXY
+    const originalHttpsProxy = process.env.HTTPS_PROXY
+    const originalLowerHttpProxy = process.env.http_proxy
+    const originalLowerHttpsProxy = process.env.https_proxy
+    process.env.HTTP_PROXY = 'http://127.0.0.1:1181'
+    process.env.HTTPS_PROXY = 'http://127.0.0.1:1181'
+    delete process.env.http_proxy
+    delete process.env.https_proxy
+    try {
+      expect(buildNetworkEnvironment(settings)).toEqual({
+        API_TIMEOUT_MS: String(DEFAULT_AI_REQUEST_TIMEOUT_MS),
+      })
+      expect(getNetworkProxyFetchOptions(settings, 'https://api.example.com/v1/messages').proxy)
+        .toBe('http://127.0.0.1:1181')
+    } finally {
+      if (originalHttpProxy === undefined) delete process.env.HTTP_PROXY
+      else process.env.HTTP_PROXY = originalHttpProxy
+      if (originalHttpsProxy === undefined) delete process.env.HTTPS_PROXY
+      else process.env.HTTPS_PROXY = originalHttpsProxy
+      if (originalLowerHttpProxy === undefined) delete process.env.http_proxy
+      else process.env.http_proxy = originalLowerHttpProxy
+      if (originalLowerHttpsProxy === undefined) delete process.env.https_proxy
+      else process.env.https_proxy = originalLowerHttpsProxy
+    }
   })
 
   it('clamps AI request timeouts and trims manual proxy URLs', () => {

@@ -13,7 +13,7 @@ export type TraceSessionListApiItem = TraceSessionListItem & {
     id: string
     title: string
     projectPath: string
-    workDir: string
+    workDir: string | null
   } | null
 }
 
@@ -135,12 +135,12 @@ async function listSearchedTraces(query: string, limit: number, offset: number):
 }
 
 async function decorateTraceListItem(item: TraceSessionListItem): Promise<TraceSessionListApiItem> {
-  const session = await sessionService.getSession(item.sessionId).catch(() => null)
+  const session = await getTraceSessionMeta(item.sessionId)
   return {
     ...item,
     session: session
       ? {
-          id: session.id,
+          id: item.sessionId,
           title: session.title,
           projectPath: session.projectPath,
           workDir: session.workDir,
@@ -150,17 +150,32 @@ async function decorateTraceListItem(item: TraceSessionListItem): Promise<TraceS
 }
 
 async function decorateTraceFileCandidate(item: TraceSessionFileItem): Promise<Pick<TraceSessionListApiItem, 'sessionId' | 'session'>> {
-  const session = await sessionService.getSession(item.sessionId).catch(() => null)
+  const session = await getTraceSessionMeta(item.sessionId)
   return {
     sessionId: item.sessionId,
     session: session
       ? {
-          id: session.id,
+          id: item.sessionId,
           title: session.title,
           projectPath: session.projectPath,
           workDir: session.workDir,
         }
       : null,
+  }
+}
+
+async function getTraceSessionMeta(sessionId: string): Promise<{
+  title: string
+  projectPath: string
+  workDir: string | null
+} | null> {
+  const found = await sessionService.findSessionFile(sessionId)
+  if (!found) return null
+  const meta = await sessionService.getSessionTitleAndMeta(found.filePath)
+  return {
+    title: meta.title,
+    projectPath: meta.projectPath,
+    workDir: meta.workDir,
   }
 }
 

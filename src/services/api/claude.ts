@@ -446,31 +446,57 @@ function should1hCacheTTL(querySource?: QuerySource): boolean {
  * Configure effort parameters for API request.
  *
  */
-function configureEffortParams(
+export function configureEffortParams(
   effortValue: EffortValue | undefined,
   outputConfig: BetaOutputConfig,
   extraBodyParams: Record<string, unknown>,
   betas: string[],
   model: string,
 ): void {
-  if (!modelSupportsEffort(model) || "effort" in outputConfig) {
-    return;
+  if (
+    !modelSupportsEffort(model) ||
+    'effort' in outputConfig ||
+    shouldSuppressEffortOutputConfig()
+  ) {
+    return
   }
 
   if (effortValue === undefined) {
-    betas.push(EFFORT_BETA_HEADER);
-  } else if (typeof effortValue === "string") {
+    outputConfig.effort = 'high'
+    betas.push(EFFORT_BETA_HEADER)
+  } else if (typeof effortValue === 'string') {
     // Send string effort level as is
-    outputConfig.effort = effortValue;
-    betas.push(EFFORT_BETA_HEADER);
-  } else if (process.env.USER_TYPE === "ant") {
+    outputConfig.effort = effortValue
+    betas.push(EFFORT_BETA_HEADER)
+  } else if (process.env.USER_TYPE === 'ant') {
     // Numeric effort override - ant-only (uses anthropic_internal)
     const existingInternal =
-      (extraBodyParams.anthropic_internal as Record<string, unknown>) || {};
+      (extraBodyParams.anthropic_internal as Record<string, unknown>) || {}
     extraBodyParams.anthropic_internal = {
       ...existingInternal,
       effort_override: effortValue,
-    };
+    }
+  }
+}
+
+function shouldSuppressEffortOutputConfig(): boolean {
+  if (!isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS)) {
+    return false
+  }
+
+  const baseUrl = process.env.ANTHROPIC_BASE_URL ?? ''
+  try {
+    const url = new URL(baseUrl)
+    const proxyPath = url.pathname.replace(/\/+$/, '')
+    const isLocalProxy =
+      (url.hostname === '127.0.0.1' || url.hostname === 'localhost') &&
+      (
+        proxyPath === '/proxy' ||
+        proxyPath.startsWith('/proxy/providers/')
+      )
+    return !isLocalProxy
+  } catch {
+    return true
   }
 }
 

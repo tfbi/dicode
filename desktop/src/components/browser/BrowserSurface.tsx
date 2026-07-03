@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import { Camera, Loader2, MousePointer2 } from 'lucide-react'
+import { Camera, Loader2, Minus, MousePointer2, Plus, RotateCcw } from 'lucide-react'
 import { BrowserAddressBar } from './BrowserAddressBar'
 import { computeWebviewBounds } from './computeWebviewBounds'
 import { getServerBaseUrl, isLoopbackHostname } from '../../lib/desktopRuntime'
@@ -7,7 +7,14 @@ import { classifyPreviewLink } from '../../lib/previewLinkRouter'
 import { isAbsoluteLocalPath, localFileUrl, previewFsUrl } from '../../lib/handlePreviewLink'
 import { previewBridge } from '../../lib/previewBridge'
 import { subscribePreviewEvents } from '../../lib/previewEvents'
-import { useBrowserPanelStore } from '../../stores/browserPanelStore'
+import {
+  BROWSER_ZOOM_STEP,
+  DEFAULT_BROWSER_ZOOM,
+  MAX_BROWSER_ZOOM,
+  MIN_BROWSER_ZOOM,
+  normalizeBrowserZoom,
+  useBrowserPanelStore,
+} from '../../stores/browserPanelStore'
 import { useOverlayStore } from '../../stores/overlayStore'
 
 const LOCAL_PREVIEW_PATH_PREFIXES = ['/preview-fs/', '/local-file/']
@@ -63,6 +70,10 @@ export function BrowserSurface({ sessionId }: { sessionId: string }) {
   const session = useBrowserPanelStore((s) => s.bySession[sessionId])
   const store = useBrowserPanelStore.getState()
   const overlayCount = useOverlayStore((s) => s.count)
+  const previewZoom = session?.zoom ?? DEFAULT_BROWSER_ZOOM
+  const zoomPercent = Math.round(previewZoom * 100)
+  const canZoomOut = previewZoom > MIN_BROWSER_ZOOM
+  const canZoomIn = previewZoom < MAX_BROWSER_ZOOM
 
   const reportBounds = () => {
     const el = hostRef.current
@@ -98,6 +109,7 @@ export function BrowserSurface({ sessionId }: { sessionId: string }) {
 
     requestedUrlRef.current = url
     loadNativePreview(url, async () => {
+      await previewBridge.setZoom(previewZoom)
       if (hasNativePreviewRef.current) {
         await previewBridge.navigate(url)
         return
@@ -143,6 +155,11 @@ export function BrowserSurface({ sessionId }: { sessionId: string }) {
     if (!session) return
     previewBridge.setVisible(overlayCount === 0)
   }, [overlayCount, session])
+
+  useEffect(() => {
+    if (!session) return
+    void previewBridge.setZoom(previewZoom)
+  }, [previewZoom, session])
 
   useEffect(() => {
     const el = hostRef.current
@@ -222,6 +239,17 @@ export function BrowserSurface({ sessionId }: { sessionId: string }) {
     </>
   )
 
+  const setPreviewZoom = (nextZoom: number) => {
+    store.setZoom(sessionId, normalizeBrowserZoom(nextZoom))
+  }
+
+  const zoomButtonClass = [
+    'inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors',
+    'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-container-low)] hover:text-[var(--color-text-primary)]',
+    'disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-[var(--color-text-secondary)]',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]',
+  ].join(' ')
+
   return (
     <div className="flex h-full flex-col">
       <BrowserAddressBar
@@ -249,12 +277,51 @@ export function BrowserSurface({ sessionId }: { sessionId: string }) {
         }}
         rightActions={previewActions}
       />
-      <div ref={hostRef} className="relative flex-1 overflow-hidden" data-testid="preview-host">
-        {session.loading && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[var(--color-surface)] text-[var(--color-text-tertiary)]">
-            <Loader2 size={18} className="animate-spin" aria-label="加载中" />
+      <div className="flex min-h-0 flex-1 flex-col bg-[var(--color-surface)]">
+        <div ref={hostRef} className="relative min-h-0 flex-1 overflow-hidden" data-testid="preview-host">
+          {session.loading && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[var(--color-surface)] text-[var(--color-text-tertiary)]">
+              <Loader2 size={18} className="animate-spin" aria-label="加载中" />
+            </div>
+          )}
+        </div>
+        <div className="flex h-10 shrink-0 items-center justify-end border-t border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] px-2">
+          <div
+            data-testid="browser-zoom-controls"
+            className="inline-flex h-8 items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-1 shadow-sm"
+          >
+            <button
+              aria-label="缩小预览"
+              title="缩小预览"
+              disabled={!canZoomOut}
+              className={zoomButtonClass}
+              onClick={() => setPreviewZoom(previewZoom - BROWSER_ZOOM_STEP)}
+            >
+              <Minus size={14} />
+            </button>
+            <span className="min-w-11 select-none text-center text-xs font-medium tabular-nums text-[var(--color-text-secondary)]">
+              {zoomPercent}%
+            </span>
+            <button
+              aria-label="放大预览"
+              title="放大预览"
+              disabled={!canZoomIn}
+              className={zoomButtonClass}
+              onClick={() => setPreviewZoom(previewZoom + BROWSER_ZOOM_STEP)}
+            >
+              <Plus size={14} />
+            </button>
+            <button
+              aria-label="重置预览缩放"
+              title="重置预览缩放"
+              disabled={previewZoom === DEFAULT_BROWSER_ZOOM}
+              className={zoomButtonClass}
+              onClick={() => setPreviewZoom(DEFAULT_BROWSER_ZOOM)}
+            >
+              <RotateCcw size={14} />
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

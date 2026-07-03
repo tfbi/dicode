@@ -54,6 +54,7 @@ describe('Electron sidecar manager', () => {
     expect(resolveHostTriple('darwin', 'arm64')).toBe('aarch64-apple-darwin')
     expect(resolveHostTriple('darwin', 'x64')).toBe('x86_64-apple-darwin')
     expect(resolveHostTriple('win32', 'x64')).toBe('x86_64-pc-windows-msvc')
+    expect(resolveHostTriple('win32', 'arm64')).toBe('aarch64-pc-windows-msvc')
     expect(resolveHostTriple('linux', 'arm64')).toBe('aarch64-unknown-linux-gnu')
   })
 

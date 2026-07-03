@@ -27,7 +27,7 @@ describe('WebSocket memory events', () => {
     ])
   })
 
-  it('does not replay internal slash-command breadcrumbs as user messages', () => {
+  it('replays slash-command breadcrumbs as readable user messages', () => {
     expect(translateCliMessage({
       type: 'user',
       isReplay: true,
@@ -39,7 +39,9 @@ describe('WebSocket memory events', () => {
           '<command-args>Plan 222</command-args>',
         ].join('\n'),
       },
-    }, 'session-1')).toEqual([])
+    }, 'session-1')).toEqual([
+      { type: 'user_message_replay', content: '/agent Plan 222' },
+    ])
 
     expect(translateCliMessage({
       type: 'user',
@@ -56,6 +58,17 @@ describe('WebSocket memory events', () => {
             ].join('\n'),
           },
         ],
+      },
+    }, 'session-1')).toEqual([
+      { type: 'user_message_replay', content: '/agent Plan 222' },
+    ])
+
+    expect(translateCliMessage({
+      type: 'user',
+      isReplay: true,
+      message: {
+        role: 'user',
+        content: '<command-name>/agent</command-name> malformed breadcrumb',
       },
     }, 'session-1')).toEqual([])
   })

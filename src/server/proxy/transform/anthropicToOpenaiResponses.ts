@@ -13,6 +13,7 @@ import type {
   OpenAIChatContentPart,
 } from './types.js'
 import { stripLeadingBillingHeader } from './billingHeader.js'
+import { normalizeOpenAIReasoningEffort } from './effort.js'
 
 export type OpenAIResponsesTransformOptions = {
   /** Stable cache routing key, forwarded as `prompt_cache_key`. */
@@ -94,6 +95,10 @@ export function anthropicToOpenaiResponses(
     } else if (body.thinking.type === 'enabled') {
       result.reasoning = { effort: 'high' }
     }
+  }
+  const outputConfigEffort = normalizeOpenAIReasoningEffort(body.output_config?.effort)
+  if (outputConfigEffort !== undefined) {
+    result.reasoning = { ...(result.reasoning ?? {}), effort: outputConfigEffort }
   }
 
   // stop_sequences not supported in Responses API, dropped

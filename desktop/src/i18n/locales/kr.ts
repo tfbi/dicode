@@ -463,6 +463,8 @@ export const kr: Record<TranslationKey, string> = {
   'settings.providers.toolSearchEnabled': 'Tool Search 사용',
   'settings.providers.toolSearchDesc': 'MCP와 지연 도구를 필요할 때 로드해 초기 도구 schema 토큰을 줄입니다. 약한 모델이나 tool_reference를 거부하는 공급자에서는 끌 수 있습니다.',
   'settings.providers.toolSearchUnsupported': '여기서는 Anthropic Messages 형식 공급자만 Tool Search를 지원합니다. OpenAI 프록시 형식은 전체 도구 schema를 유지합니다.',
+  'settings.providers.disableExperimentalBetas': '실험적 Beta 헤더 비활성화',
+  'settings.providers.disableExperimentalBetasDesc': '이 공급자에 CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1을 설정해 타사 게이트웨이가 거부할 수 있는 beta API 형식을 피합니다.',
 
   // Settings > Permissions
   'settings.permissions.title': '권한 모드',
@@ -983,6 +985,11 @@ export const kr: Record<TranslationKey, string> = {
   'settings.general.outputStyleSourceLocal': '로컬 프로젝트 스타일',
   'settings.general.outputStyleSourcePolicy': '관리형 스타일',
   'settings.general.outputStyleSourcePlugin': '플러그인 스타일',
+  'settings.general.defaultPermissionTitle': '기본 세션 권한',
+  'settings.general.defaultPermissionDescription': '새 데스크톱 채팅 세션을 시작할 때 적용할 권한 모드를 선택합니다.',
+  'settings.general.defaultPermissionLabel': '새 세션 권한 모드',
+  'settings.general.defaultPermissionHint': '각 세션 안에서는 채팅 권한 선택기에서 개별적으로 변경할 수 있습니다.',
+  'settings.general.defaultPermissionScope': '각 새 세션의 작업 공간',
   'settings.general.effortTitle': '노력 수준',
   'settings.general.effortDescription': '모델이 사용하는 계산량을 제어합니다.',
   'settings.general.effort.low': '낮음',
@@ -1085,6 +1092,8 @@ export const kr: Record<TranslationKey, string> = {
   'settings.general.h5AccessProxyNote': '현재 리버스 프록시 URL을 사용하고 있습니다. 휴대폰은 구성한 공개 도메인 / 터널을 통해 데스크톱에 연결됩니다. 프록시가 계속 작동 중인지 확인하세요.',
   'settings.general.networkTitle': '네트워크',
   'settings.general.networkDescription': '데스크톱 세션이 수행하는 공급자 API 요청을 제어합니다.',
+  'settings.general.networkProxyModeDirect': '직접 연결',
+  'settings.general.networkProxyModeDirectDescription': '공급자 API 요청에 상속된 프록시 설정을 사용하지 않습니다.',
   'settings.general.networkProxyModeSystem': '시스템 프록시',
   'settings.general.networkProxyModeSystemDescription': '앱 프로세스가 상속한 프록시 설정을 사용합니다.',
   'settings.general.networkProxyModeManual': '수동 프록시',
@@ -1916,7 +1925,6 @@ export const kr: Record<TranslationKey, string> = {
   'chat.retry.retrying': '지금 다시 시도 중…',
   'chat.fallback.title': '네트워크 불안정으로 비스트리밍 모드로 전환됨',
   'chat.fallback.detail': '응답이 한 번에 도착하므로 시간이 걸릴 수 있습니다',
-  'chat.turnCompleted': '완료됨 ({duration})',
 
   // ─── Tabs ──────────────────────────────────────
   'tabs.close': '닫기',

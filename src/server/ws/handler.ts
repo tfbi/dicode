@@ -29,13 +29,14 @@ import {
 } from '../services/titleService.js'
 import { parseSlashCommand } from '../../utils/slashCommandParsing.js'
 import {
-  COMMAND_ARGS_TAG,
-  COMMAND_MESSAGE_TAG,
   COMMAND_NAME_TAG,
-  LOCAL_COMMAND_CAVEAT_TAG,
   LOCAL_COMMAND_STDERR_TAG,
   LOCAL_COMMAND_STDOUT_TAG,
 } from '../../constants/xml.js'
+import {
+  getCommandMetadataDisplayText,
+  shouldHideCommandMetadataContent,
+} from '../../utils/commandMetadata.js'
 import { shouldCreateWorktreeForSessionLaunch } from '../services/repositoryLaunchService.js'
 import { getDisconnectGraceMs } from './disconnectGraceConfig.js'
 
@@ -534,6 +535,9 @@ async function handleDesktopClearCommand(
   const { sessionId } = ws.data
 
   const workDir = conversationService.getSessionWorkDir(sessionId)
+  const permissionMode = conversationService.hasSession(sessionId)
+    ? conversationService.getSessionPermissionMode(sessionId)
+    : undefined
   conversationService.stopSession(sessionId)
   conversationService.clearOutputCallbacks(sessionId)
   sessionSlashCommands.delete(sessionId)
@@ -541,7 +545,7 @@ async function handleDesktopClearCommand(
   cleanupStreamState(sessionId)
 
   try {
-    await sessionService.clearSessionTranscript(sessionId, workDir || undefined)
+    await sessionService.clearSessionTranscript(sessionId, workDir || undefined, permissionMode)
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     sendMessage(ws, {
@@ -653,7 +657,6 @@ async function handleSetPermissionMode(
   const pendingStartup = sessionStartupPromises.get(sessionId)
 
   if (pendingStartup) {
-    await persistSessionPermissionMode(sessionId, message.mode)
     await enqueueRuntimeTransition(sessionId, async () => {
       await pendingStartup.catch(() => undefined)
       if (!conversationService.hasSession(sessionId)) return
@@ -663,7 +666,9 @@ async function handleSetPermissionMode(
   }
 
   if (!conversationService.hasSession(sessionId)) {
-    await persistSessionPermissionMode(sessionId, message.mode)
+    if (await persistSessionPermissionMode(sessionId, message.mode)) {
+      sendMessage(ws, { type: 'permission_mode_changed', mode: message.mode })
+    }
     return
   }
 
@@ -699,11 +704,13 @@ async function applyPermissionModeToActiveSession(
   const currentMode = conversationService.getSessionPermissionMode(sessionId)
   if (shouldDeferRuntimeRestartForActiveTurn(sessionId)) {
     deferredPermissionModes.set(sessionId, mode)
-    await persistSessionPermissionMode(sessionId, mode)
     return
   }
 
-  if (currentMode === mode) return
+  if (currentMode === mode) {
+    sendMessage(ws, { type: 'permission_mode_changed', mode })
+    return
+  }
   const needsRestart = shouldRestartForPermissionMode(currentMode, mode)
 
   if (needsRestart) {
@@ -719,6 +726,7 @@ async function applyPermissionModeToActiveSession(
     return
   }
   await persistSessionPermissionMode(sessionId, mode)
+  sendMessage(ws, { type: 'permission_mode_changed', mode })
 }
 
 async function handleSetRuntimeConfig(
@@ -827,6 +835,7 @@ async function restartSessionWithPermissionMode(
       `?token=${encodeURIComponent(crypto.randomUUID())}`
     await conversationService.startSession(sessionId, workDir, sdkUrl, runtimeSettings)
 
+    sendMessage(ws, { type: 'permission_mode_changed', mode })
     sendMessage(ws, { type: 'status', state: 'idle' })
     console.log(`[WS] Restarted CLI for ${sessionId} with permission mode: ${mode}`)
   } catch (err) {
@@ -855,18 +864,19 @@ async function persistSessionPermissionMode(
   sessionId: string,
   mode: string,
   knownWorkDir?: string | null,
-): Promise<void> {
+): Promise<boolean> {
   const workDir =
     knownWorkDir ||
     conversationService.getSessionWorkDir(sessionId) ||
     await sessionService.getSessionWorkDir(sessionId).catch(() => null)
 
-  if (!workDir) return
+  if (!workDir) return false
 
   await sessionService.appendSessionMetadata(sessionId, {
     workDir,
     permissionMode: mode,
   })
+  return true
 }
 
 async function persistSessionRuntimeConfig(
@@ -2347,34 +2357,12 @@ function hasToolResultBlock(content: unknown): boolean {
       (block as { type?: unknown }).type === 'tool_result')
 }
 
-function isInternalCommandBreadcrumb(content: unknown): boolean {
-  const textBlocks = typeof content === 'string'
-    ? [content]
-    : Array.isArray(content)
-      ? content.flatMap((block) => {
-        if (!block || typeof block !== 'object') return []
-        const typedBlock = block as { type?: unknown; text?: unknown }
-        return typedBlock.type === 'text' && typeof typedBlock.text === 'string'
-          ? [typedBlock.text]
-          : []
-      })
-      : []
-
-  return textBlocks.length > 0 && textBlocks.every((text) => {
-    const trimmed = text.trim()
-    return (
-      trimmed.includes(`<${COMMAND_NAME_TAG}>`) ||
-      trimmed.includes(`<${COMMAND_MESSAGE_TAG}>`) ||
-      trimmed.includes(`<${COMMAND_ARGS_TAG}>`) ||
-      trimmed.includes(`<${LOCAL_COMMAND_CAVEAT_TAG}>`)
-    )
-  })
-}
-
 function extractReplayUserText(cliMsg: any): string | null {
   if (cliMsg?.isReplay !== true) return null
   const content = cliMsg.message?.content
-  if (isInternalCommandBreadcrumb(content)) return null
+  const commandDisplayText = getCommandMetadataDisplayText(content)
+  if (commandDisplayText) return commandDisplayText
+  if (shouldHideCommandMetadataContent(content)) return null
   if (isCompactSummaryMessageContent(content)) return null
   if (hasToolResultBlock(content)) return null
   if (extractLocalCommandOutput(content)) return null
@@ -2462,6 +2450,7 @@ function bindClientSessionOutput(
       return
     }
 
+    handleCliPermissionModeBroadcast(sessionId, cliMsg)
     const serverMsgs = translateCliMessage(cliMsg, sessionId)
     for (const msg of serverMsgs) {
       sendMessage(ws, msg)
@@ -2471,6 +2460,30 @@ function bindClientSessionOutput(
 
   clientOutputCallbacks.set(ws, { sessionId, callback })
   conversationService.onOutput(sessionId, callback)
+}
+
+function getCliPermissionModeBroadcast(cliMsg: any): string | null {
+  if (
+    cliMsg?.type === 'system' &&
+    cliMsg.subtype === 'status' &&
+    typeof cliMsg.permissionMode === 'string'
+  ) {
+    return cliMsg.permissionMode
+  }
+  return null
+}
+
+function handleCliPermissionModeBroadcast(sessionId: string, cliMsg: any): void {
+  const mode = getCliPermissionModeBroadcast(cliMsg)
+  if (!mode) return
+
+  const currentMode = conversationService.getSessionPermissionMode(sessionId)
+  if (currentMode === mode) return
+
+  if (!conversationService.recordSessionPermissionMode(sessionId, mode)) return
+  void persistSessionPermissionMode(sessionId, mode).catch((err) => {
+    console.warn(`[WS] Failed to persist CLI permission mode broadcast for ${sessionId}:`, err)
+  })
 }
 
 type RuntimeSettings = {

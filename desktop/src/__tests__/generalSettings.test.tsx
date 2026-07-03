@@ -8,7 +8,7 @@ import { useUIStore } from '../stores/uiStore'
 import { useUpdateStore } from '../stores/updateStore'
 import type { SavedProvider } from '../types/provider'
 import type { ProviderPreset } from '../types/providerPreset'
-import type { AppMode, ChatSendBehavior, ThemeMode, UpdateProxySettings } from '../types/settings'
+import type { AppMode, ChatSendBehavior, PermissionMode, ThemeMode, UpdateProxySettings } from '../types/settings'
 import { browserHost } from '../lib/desktopHost/browserHost'
 
 const MOCK_DELETE_PROVIDER = vi.fn()
@@ -208,6 +208,7 @@ describe('Settings > General tab', () => {
     useSettingsStore.setState({
       locale: 'en',
       theme: 'light',
+      permissionMode: 'default',
       thinkingEnabled: true,
       autoDreamEnabled: false,
       skipWebFetchPreflight: true,
@@ -219,7 +220,7 @@ describe('Settings > General tab', () => {
       webSearch: { mode: 'auto', tavilyApiKey: '', braveApiKey: '' },
       network: {
         aiRequestTimeoutMs: 120_000,
-        proxy: { mode: 'system', url: '' },
+        proxy: { mode: 'direct', url: '' },
       },
       h5Access: {
         enabled: false,
@@ -257,6 +258,9 @@ describe('Settings > General tab', () => {
       }),
       setTheme: vi.fn().mockImplementation(async (theme: ThemeMode) => {
         useSettingsStore.setState({ theme })
+      }),
+      setPermissionMode: vi.fn().mockImplementation(async (permissionMode: PermissionMode) => {
+        useSettingsStore.setState({ permissionMode })
       }),
       setSkipWebFetchPreflight: vi.fn().mockImplementation(async (enabled: boolean) => {
         useSettingsStore.setState({ skipWebFetchPreflight: enabled })
@@ -437,7 +441,8 @@ describe('Settings > General tab', () => {
     render(<Settings />)
 
     fireEvent.click(screen.getByText('General'))
-    expect(screen.getByRole('button', { name: /System proxy/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Direct connection/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /System proxy/i })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Manual proxy/i }))
     const proxyInput = screen.getByLabelText('Proxy URL')
@@ -748,6 +753,25 @@ describe('Settings > General tab', () => {
     fireEvent.click(toggle)
 
     expect(useSettingsStore.getState().setThinkingEnabled).toHaveBeenCalledWith(false)
+  })
+
+  it('lets the user choose a default permission mode for new sessions', async () => {
+    render(<Settings />)
+
+    fireEvent.click(screen.getByText('General'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ask permissions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Bypass permissions/ }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Enable bypass' }))
+      await Promise.resolve()
+    })
+
+    expect(useSettingsStore.getState().setPermissionMode).toHaveBeenCalledWith('bypassPermissions')
+    expect(useSettingsStore.getState().permissionMode).toBe('bypassPermissions')
   })
 
   it('keeps Auto-dream disabled by default and confirms before enabling it', async () => {
@@ -1914,6 +1938,76 @@ describe('Settings > Providers tab', () => {
       env: expect.objectContaining({
         EXISTING_ENV: '1',
         ENABLE_TOOL_SEARCH: 'false',
+      }),
+    }))
+  })
+
+  it('defaults experimental beta headers on and persists a provider disable', async () => {
+    MOCK_GET_SETTINGS.mockResolvedValue({ env: { EXISTING_ENV: '1' } })
+    providerStoreState.createProvider = vi.fn().mockResolvedValue({
+      id: 'provider-new',
+      presetId: 'custom',
+      name: 'Custom',
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.example.com/anthropic',
+      apiFormat: 'anthropic',
+      disableExperimentalBetas: true,
+      models: {
+        main: 'custom-main',
+        haiku: 'custom-main',
+        sonnet: 'custom-main',
+        opus: 'custom-main',
+      },
+    })
+    providerStoreState.presets = [
+      {
+        id: 'custom',
+        name: 'Custom',
+        baseUrl: 'https://api.example.com/anthropic',
+        apiFormat: 'anthropic',
+        defaultModels: {
+          main: 'custom-main',
+          haiku: '',
+          sonnet: '',
+          opus: '',
+        },
+        needsApiKey: true,
+        websiteUrl: '',
+      },
+    ]
+
+    render(<Settings />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Add Provider/i }))
+    const dialog = screen.getByRole('dialog')
+    const disableBetasCheckbox = within(dialog).getByRole('checkbox', { name: 'Disable experimental beta headers' })
+    const settingsTextarea = await waitFor(() => {
+      const textarea = dialog.querySelector('textarea')
+      expect(textarea?.value).toContain('"ANTHROPIC_MODEL"')
+      return textarea as HTMLTextAreaElement
+    })
+
+    expect(disableBetasCheckbox).not.toBeChecked()
+    expect(settingsTextarea.value).not.toContain('CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS')
+
+    fireEvent.click(disableBetasCheckbox)
+    expect(disableBetasCheckbox).toBeChecked()
+    await waitFor(() => {
+      expect(settingsTextarea.value).toContain('"CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1"')
+    })
+
+    fireEvent.change(within(dialog).getByPlaceholderText('sk-...'), { target: { value: 'sk-test' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /Save|Add/i }))
+
+    await waitFor(() => {
+      expect(providerStoreState.createProvider).toHaveBeenCalledWith(expect.objectContaining({
+        disableExperimentalBetas: true,
+      }))
+    })
+    expect(MOCK_UPDATE_SETTINGS).toHaveBeenCalledWith(expect.objectContaining({
+      env: expect.objectContaining({
+        EXISTING_ENV: '1',
+        CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: '1',
       }),
     }))
   })

@@ -463,6 +463,8 @@ export const zh: Record<TranslationKey, string> = {
   'settings.providers.toolSearchEnabled': '啟用 Tool Search',
   'settings.providers.toolSearchDesc': '按需載入 MCP 和延遲工具，減少首輪工具 schema token。弱模型或不支援 tool_reference 的服務商可以關閉。',
   'settings.providers.toolSearchUnsupported': '目前僅 Anthropic Messages 格式支援 Tool Search；OpenAI 代理格式會保留完整工具 schema。',
+  'settings.providers.disableExperimentalBetas': '關閉實驗性 Beta 標頭',
+  'settings.providers.disableExperimentalBetasDesc': '為此服務商設定 CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1，避免第三方通道拒絕 beta API 形態。',
 
   // Settings > Permissions
   'settings.permissions.title': '許可權模式',
@@ -983,6 +985,11 @@ export const zh: Record<TranslationKey, string> = {
   'settings.general.outputStyleSourceLocal': '專案本地風格',
   'settings.general.outputStyleSourcePolicy': '受管風格',
   'settings.general.outputStyleSourcePlugin': '外掛風格',
+  'settings.general.defaultPermissionTitle': '預設會話權限',
+  'settings.general.defaultPermissionDescription': '選擇桌面端新建聊天會話時預設使用的權限模式。',
+  'settings.general.defaultPermissionLabel': '新會話權限模式',
+  'settings.general.defaultPermissionHint': '每個會話內部仍然可以透過聊天區的權限選擇器單獨修改。',
+  'settings.general.defaultPermissionScope': '每個新會話的工作區',
   'settings.general.effortTitle': '推理強度',
   'settings.general.effortDescription': '控制模型使用的計算量。',
   'settings.general.effort.low': '低',
@@ -1085,6 +1092,8 @@ export const zh: Record<TranslationKey, string> = {
   'settings.general.h5AccessProxyNote': '當前使用的是反向代理 URL，手機掃碼會經公網/隧道返回桌面端。請確認你的反代仍能工作。',
   'settings.general.networkTitle': '網路',
   'settings.general.networkDescription': '控制桌面會話發起的服務商 API 請求。',
+  'settings.general.networkProxyModeDirect': '直連',
+  'settings.general.networkProxyModeDirectDescription': '服務商 API 請求不使用應用程序繼承到的代理。',
   'settings.general.networkProxyModeSystem': '系統代理',
   'settings.general.networkProxyModeSystemDescription': '使用應用程序繼承到的代理設定。',
   'settings.general.networkProxyModeManual': '手動代理',
@@ -1916,7 +1925,6 @@ export const zh: Record<TranslationKey, string> = {
   'chat.retry.retrying': '正在重試…',
   'chat.fallback.title': '網路波動，已切換為非串流請求',
   'chat.fallback.detail': '回應將一次性返回，可能需要較長時間',
-  'chat.turnCompleted': '已完成，用時 {duration}',
 
   // ─── Tabs ──────────────────────────────────────
   'tabs.close': '關閉',

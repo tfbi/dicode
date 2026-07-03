@@ -56,6 +56,7 @@ export const ModelContextWindowsSchema = z.record(
   z.number().int().min(16000).max(10000000),
 )
 export const ToolSearchEnabledSchema = z.boolean()
+export const DisableExperimentalBetasSchema = z.boolean()
 
 export const SavedProviderSchema = z.object({
   id: z.string(),
@@ -71,6 +72,7 @@ export const SavedProviderSchema = z.object({
   autoCompactWindow: AutoCompactWindowSchema.optional(),
   modelContextWindows: ModelContextWindowsSchema.optional(),
   toolSearchEnabled: ToolSearchEnabledSchema.optional(),
+  disableExperimentalBetas: DisableExperimentalBetasSchema.optional(),
   notes: z.string().optional(),
 })
 
@@ -94,6 +96,7 @@ export const CreateProviderSchema = z.object({
   autoCompactWindow: AutoCompactWindowSchema.optional(),
   modelContextWindows: ModelContextWindowsSchema.optional(),
   toolSearchEnabled: ToolSearchEnabledSchema.optional(),
+  disableExperimentalBetas: DisableExperimentalBetasSchema.optional(),
   notes: z.string().optional(),
 })
 
@@ -109,6 +112,7 @@ export const UpdateProviderSchema = z.object({
   autoCompactWindow: AutoCompactWindowSchema.nullable().optional(),
   modelContextWindows: ModelContextWindowsSchema.nullable().optional(),
   toolSearchEnabled: ToolSearchEnabledSchema.optional(),
+  disableExperimentalBetas: DisableExperimentalBetasSchema.optional(),
   notes: z.string().optional(),
 })
 

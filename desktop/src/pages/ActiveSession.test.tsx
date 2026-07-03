@@ -1441,6 +1441,34 @@ describe('ActiveSession task polling', () => {
     })
 
     expect(useWorkspacePanelStore.getState().width).toBe(WORKSPACE_PANEL_DEFAULT_WIDTH + 32)
+
+    vi.spyOn(workbenchPanel, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      width: 558,
+      height: 720,
+      top: 0,
+      right: 558,
+      bottom: 720,
+      left: 0,
+      toJSON: () => ({}),
+    })
+
+    act(() => {
+      const pointerDown = createEvent.pointerDown(resizeHandle)
+      Object.defineProperty(pointerDown, 'button', { value: 0 })
+      Object.defineProperty(pointerDown, 'clientX', { value: 100 })
+      fireEvent(resizeHandle, pointerDown)
+    })
+
+    act(() => {
+      const pointerMove = new Event('pointermove')
+      Object.defineProperty(pointerMove, 'clientX', { value: 132 })
+      window.dispatchEvent(pointerMove)
+      window.dispatchEvent(new Event('pointerup'))
+    })
+
+    expect(useWorkspacePanelStore.getState().width).toBe(526)
   })
 
   it('does not render the workspace panel when closed or for member sessions', () => {

@@ -19,7 +19,11 @@ import { openaiChatStreamToAnthropic } from './streaming/openaiChatStreamToAnthr
 import { openaiResponsesStreamToAnthropic } from './streaming/openaiResponsesStreamToAnthropic.js'
 import type { AnthropicRequest } from './transform/types.js'
 import { getProxyFetchOptions } from '../../utils/proxy.js'
-import { getManualNetworkProxyUrl, loadNetworkSettings } from '../services/networkSettings.js'
+import {
+  getNetworkProxyFetchOptions,
+  loadNetworkSettings,
+  type NetworkSettings,
+} from '../services/networkSettings.js'
 import { normalizeModelStringForAPI } from '../../utils/model/model.js'
 import {
   createTraceCallId,
@@ -219,15 +223,14 @@ export async function handleProxyRequest(req: Request, url: URL): Promise<Respon
   const isStream = body.stream === true
   const baseUrl = config.baseUrl.replace(/\/+$/, '')
   const networkSettings = await loadNetworkSettings()
-  const proxyUrl = getManualNetworkProxyUrl(networkSettings)
   const traceContext = buildProxyTraceContext(req, config, body)
   const promptCacheKey = resolvePromptCacheKey(body, req.headers.get('x-claude-code-session-id'))
 
   try {
     if (config.apiFormat === 'openai_chat') {
-      return await handleOpenaiChat(body, baseUrl, config.apiKey, isStream, networkSettings.aiRequestTimeoutMs, proxyUrl, traceContext)
+      return await handleOpenaiChat(body, baseUrl, config.apiKey, isStream, networkSettings, traceContext)
     } else {
-      return await handleOpenaiResponses(body, baseUrl, config.apiKey, isStream, networkSettings.aiRequestTimeoutMs, proxyUrl, traceContext, promptCacheKey)
+      return await handleOpenaiResponses(body, baseUrl, config.apiKey, isStream, networkSettings, traceContext, promptCacheKey)
     }
   } catch (err) {
     if (traceContext && !wasTraceErrorRecorded(err)) {
@@ -260,8 +263,7 @@ async function handleOpenaiChat(
   baseUrl: string,
   apiKey: string,
   isStream: boolean,
-  aiRequestTimeoutMs: number,
-  proxyUrl: string | undefined,
+  networkSettings: NetworkSettings,
   traceContext: ProxyTraceContext | null,
 ): Promise<Response> {
   const deepSeekCompatible = shouldUseDeepSeekReasoningCompat(baseUrl)
@@ -275,7 +277,7 @@ async function handleOpenaiChat(
     'Content-Type': 'application/json',
     Authorization: `Bearer ${apiKey}`,
   }
-  const proxyOptions = getProxyFetchOptions({ proxyUrl })
+  const proxyOptions = getNetworkProxyFetchOptions(networkSettings, url)
   const startedAtMs = Date.now()
   const startedAt = new Date(startedAtMs).toISOString()
   const traceCallId = traceContext
@@ -296,7 +298,7 @@ async function handleOpenaiChat(
       headers: upstreamRequestHeaders,
       body: JSON.stringify(transformed),
       ...proxyOptions,
-    }, aiRequestTimeoutMs, isStream)
+    }, networkSettings.aiRequestTimeoutMs, isStream)
   } catch (err) {
     if (traceContext) {
       await recordProxyTrace({
@@ -366,7 +368,7 @@ async function handleOpenaiChat(
         { status: 502 },
       )
     }
-    const upstreamBody = withStreamIdleTimeout(upstream.body, aiRequestTimeoutMs)
+    const upstreamBody = withStreamIdleTimeout(upstream.body, networkSettings.aiRequestTimeoutMs)
     const anthropicStream = openaiChatStreamToAnthropic(upstreamBody, body.model)
     const tracedStream = traceContext
       ? captureTraceStream(anthropicStream, async (bodySnapshot, error) => {
@@ -434,8 +436,7 @@ async function handleOpenaiResponses(
   baseUrl: string,
   apiKey: string,
   isStream: boolean,
-  aiRequestTimeoutMs: number,
-  proxyUrl: string | undefined,
+  networkSettings: NetworkSettings,
   traceContext: ProxyTraceContext | null,
   promptCacheKey?: string,
 ): Promise<Response> {
@@ -445,7 +446,7 @@ async function handleOpenaiResponses(
     'Content-Type': 'application/json',
     Authorization: `Bearer ${apiKey}`,
   }
-  const proxyOptions = getProxyFetchOptions({ proxyUrl })
+  const proxyOptions = getNetworkProxyFetchOptions(networkSettings, url)
   const startedAtMs = Date.now()
   const startedAt = new Date(startedAtMs).toISOString()
   const traceCallId = traceContext
@@ -466,7 +467,7 @@ async function handleOpenaiResponses(
       headers: upstreamRequestHeaders,
       body: JSON.stringify(transformed),
       ...proxyOptions,
-    }, aiRequestTimeoutMs, isStream)
+    }, networkSettings.aiRequestTimeoutMs, isStream)
   } catch (err) {
     if (traceContext) {
       await recordProxyTrace({
@@ -536,7 +537,7 @@ async function handleOpenaiResponses(
         { status: 502 },
       )
     }
-    const upstreamBody = withStreamIdleTimeout(upstream.body, aiRequestTimeoutMs)
+    const upstreamBody = withStreamIdleTimeout(upstream.body, networkSettings.aiRequestTimeoutMs)
     const anthropicStream = openaiResponsesStreamToAnthropic(upstreamBody, body.model)
     const tracedStream = traceContext
       ? captureTraceStream(anthropicStream, async (bodySnapshot, error) => {

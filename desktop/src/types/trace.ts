@@ -82,6 +82,7 @@ export type TraceSessionSummary = {
 
 export type TraceSession = {
   sessionId: string
+  messageSignature?: string | null
   session?: {
     id: string
     title: string

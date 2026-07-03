@@ -11,6 +11,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useTabStore } from '../../stores/tabStore'
 import { useUIStore } from '../../stores/uiStore'
+import { formatExactMessageTimestamp, formatMessageHoverTime } from '../../lib/formatMessageTimestamp'
 import type { UIMessage } from '../../types/chat'
 import type { PerSessionState } from '../../stores/chatStore'
 
@@ -758,6 +759,33 @@ describe('MessageList nested tool calls', () => {
 
     expect(screen.queryByTestId('background-task-event-card')).toBeNull()
     expect(screen.queryByText('local_agent')).toBeNull()
+  })
+
+  it('does not render auto-dream background task events as separate transcript cards', () => {
+    useChatStore.setState({
+      sessions: {
+        [ACTIVE_TAB]: makeSessionState({
+          messages: [{
+            id: 'background-task-dream-hidden',
+            type: 'background_task',
+            timestamp: 2,
+            task: {
+              taskId: 'dream-task-hidden',
+              status: 'running',
+              taskType: 'dream',
+              description: 'dreaming',
+              startedAt: 1,
+              updatedAt: 2,
+            },
+          }],
+        }),
+      },
+    })
+
+    render(<MessageList />)
+
+    expect(screen.queryByTestId('background-task-event-card')).toBeNull()
+    expect(screen.queryByText('dreaming')).toBeNull()
   })
 
   it('renders the historical window when scrolling away from latest', async () => {
@@ -3315,8 +3343,9 @@ describe('MessageList nested tool calls', () => {
   })
 
   it('keeps user actions anchored to the right bubble and assistant actions to the left bubble', () => {
-    const now = new Date('2026-05-29T16:00:00+08:00').getTime()
-    vi.spyOn(Date, 'now').mockReturnValue(now)
+    const now = Date.now()
+    const userTimestamp = now - 5 * 60_000
+    const assistantTimestamp = now - 2 * 60 * 60_000
 
     useChatStore.setState({
       sessions: {
@@ -3326,13 +3355,13 @@ describe('MessageList nested tool calls', () => {
               id: 'user-1',
               type: 'user_text',
               content: '请把这条 prompt 放在右侧',
-              timestamp: now - 5 * 60_000,
+              timestamp: userTimestamp,
             },
             {
               id: 'assistant-1',
               type: 'assistant_text',
               content: '这条回复应该停在左侧。',
-              timestamp: now - 2 * 60 * 60_000,
+              timestamp: assistantTimestamp,
             },
           ],
         }),
@@ -3345,6 +3374,8 @@ describe('MessageList nested tool calls', () => {
     const assistantShell = screen.getByText('这条回复应该停在左侧。').closest('[data-message-shell="assistant"]')
     const userActions = screen.getByRole('button', { name: 'Copy prompt' }).closest('[data-message-actions]')
     const assistantActions = screen.getByRole('button', { name: 'Copy reply' }).closest('[data-message-actions]')
+    const userTime = within(userActions as HTMLElement).getByText(formatMessageHoverTime(userTimestamp, 'en'))
+    const assistantTime = within(assistantActions as HTMLElement).getByText(formatMessageHoverTime(assistantTimestamp, 'en'))
 
     expect(userShell).toBeTruthy()
     expect(userShell?.className).toContain('items-end')
@@ -3362,8 +3393,8 @@ describe('MessageList nested tool calls', () => {
     expect(userActions?.className).not.toContain('h-0')
     expect(userActions?.className).not.toContain('group-hover:h-7')
     expect(userActions?.className).not.toContain('invisible')
-    expect(within(userActions as HTMLElement).getByText('5m ago')).toBeTruthy()
-    expect(within(assistantActions as HTMLElement).getByText('2h ago')).toBeTruthy()
+    expect(userTime.getAttribute('title')).toBe(formatExactMessageTimestamp(userTimestamp, 'en'))
+    expect(assistantTime.getAttribute('title')).toBe(formatExactMessageTimestamp(assistantTimestamp, 'en'))
   })
 
   it('uses the document column for markdown-heavy assistant replies', () => {

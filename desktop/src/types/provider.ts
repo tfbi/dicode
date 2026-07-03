@@ -41,6 +41,7 @@ export type SavedProvider = {
   autoCompactWindow?: number
   modelContextWindows?: ModelContextWindows
   toolSearchEnabled?: boolean
+  disableExperimentalBetas?: boolean
   notes?: string
 }
 
@@ -57,6 +58,7 @@ export type CreateProviderInput = {
   autoCompactWindow?: number
   modelContextWindows?: ModelContextWindows
   toolSearchEnabled?: boolean
+  disableExperimentalBetas?: boolean
   notes?: string
 }
 
@@ -72,6 +74,7 @@ export type UpdateProviderInput = {
   autoCompactWindow?: number | null
   modelContextWindows?: ModelContextWindows | null
   toolSearchEnabled?: boolean
+  disableExperimentalBetas?: boolean
   notes?: string
 }
 

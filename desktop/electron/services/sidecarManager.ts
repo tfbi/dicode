@@ -7,6 +7,7 @@ import path from 'node:path'
 
 export const SERVER_BIND_HOST = '0.0.0.0'
 export const SERVER_CONTROL_HOST = '127.0.0.1'
+export const SERVER_STARTUP_TIMEOUT_MS = 30_000
 export const SERVER_STARTUP_LOG_LIMIT = 80
 // Shared with the Tauri shell (src-tauri/src/lib.rs) so both desktop builds
 // reuse the same sticky port across restarts (issue #767).
@@ -163,7 +164,7 @@ export function preferredServerPorts(env: NodeJS.ProcessEnv = process.env): numb
   return ports
 }
 
-export async function waitForServer(host: string, port: number, timeoutMs = 10_000): Promise<void> {
+export async function waitForServer(host: string, port: number, timeoutMs = SERVER_STARTUP_TIMEOUT_MS): Promise<void> {
   const deadline = Date.now() + timeoutMs
   const healthUrl = `http://${host}:${port}/health`
   let lastError: Error | null = null

@@ -69,9 +69,21 @@ vi.mock('../controls/PermissionModeSelector', () => ({
   PermissionModeSelector: () => <button type="button">Permissions</button>,
 }))
 
-vi.mock('../controls/ModelSelector', () => ({
-  ModelSelector: () => <button type="button">Model</button>,
-}))
+vi.mock('../controls/ModelSelector', async () => {
+  const React = await vi.importActual<typeof import('react')>('react')
+  return {
+    ModelSelector: React.forwardRef<{ open: () => void }, Record<string, never>>((_props, ref) => {
+      const [open, setOpen] = React.useState(false)
+      React.useImperativeHandle(ref, () => ({ open: () => setOpen(true) }), [])
+      return (
+        <>
+          <button type="button">Model</button>
+          {open && <div data-testid="model-selector-dropdown">Model selector opened</div>}
+        </>
+      )
+    }),
+  }
+})
 
 import { ChatInput } from './ChatInput'
 import { useChatStore } from '../../stores/chatStore'
@@ -811,6 +823,68 @@ describe('ChatInput file mentions', () => {
     })
   })
 
+  it('preserves explicit permission mode when replacing an empty session for branch launch', async () => {
+    mocks.create.mockResolvedValueOnce({ sessionId: 'created-permission', workDir: '/repo' })
+    useSessionStore.setState({
+      sessions: [{
+        id: sessionId,
+        title: 'Project',
+        createdAt: '2026-05-01T00:00:00.000Z',
+        modifiedAt: '2026-05-01T00:00:00.000Z',
+        messageCount: 0,
+        projectPath: '/repo',
+        workDir: '/repo',
+        workDirExists: true,
+        permissionMode: 'acceptEdits',
+      }],
+      activeSessionId: sessionId,
+    })
+    useChatStore.setState({
+      sessions: {
+        [sessionId]: {
+          messages: [],
+          chatState: 'idle',
+          connectionState: 'connected',
+          streamingText: '',
+          streamingToolInput: '',
+          activeToolUseId: null,
+          activeToolName: null,
+          activeThinkingId: null,
+          pendingPermission: null,
+          pendingComputerUsePermission: null,
+          tokenUsage: { input_tokens: 0, output_tokens: 0 },
+          streamingResponseChars: 0,
+          elapsedSeconds: 0,
+          statusVerb: '',
+          slashCommands: [],
+          agentTaskNotifications: {},
+          elapsedTimer: null,
+        },
+      },
+    })
+
+    render(<ChatInput variant="hero" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Select branch: main/ }))
+    fireEvent.click(await screen.findByRole('option', { name: /feature\/a/ }))
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+    fireEvent.change(input, { target: { value: 'run with preserved permissions', selectionStart: 30 } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(mocks.create).toHaveBeenCalledWith({
+        workDir: '/repo',
+        repository: { branch: 'feature/a', worktree: false },
+        permissionMode: 'acceptEdits',
+      })
+    })
+    expect(mocks.wsSend).toHaveBeenCalledWith('created-permission', {
+      type: 'user_message',
+      content: 'run with preserved permissions',
+      attachments: [],
+    })
+  })
+
   it('starts an empty active session on the selected branch inside an isolated worktree', async () => {
     mocks.create.mockResolvedValueOnce({
       sessionId: 'created-worktree',
@@ -1333,6 +1407,32 @@ describe('ChatInput file mentions', () => {
       content: 'avoid accidental sends',
       attachments: [],
     })
+  })
+
+  it('opens the model selector for /model without sending a user message', async () => {
+    useSettingsStore.setState({
+      chatSendBehavior: 'enter',
+    })
+
+    render(<ChatInput />)
+
+    await waitFor(() => {
+      expect(mocks.getGitInfo).toHaveBeenCalledWith(sessionId)
+    })
+
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+    fireEvent.change(input, {
+      target: {
+        value: '/model',
+        selectionStart: 6,
+      },
+    })
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(mocks.wsSend).not.toHaveBeenCalled()
+    expect(await screen.findByTestId('model-selector-dropdown')).toHaveTextContent('Model selector opened')
+    expect(input).toHaveValue('')
   })
 
   it('prioritizes active-session slash commands by command name when filtering', async () => {

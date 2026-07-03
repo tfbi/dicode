@@ -461,6 +461,8 @@ export const en = {
   'settings.providers.toolSearchEnabled': 'Enable Tool Search',
   'settings.providers.toolSearchDesc': 'Load MCP and deferred tools on demand to reduce initial tool schema tokens. Disable it for weak models or providers that reject tool references.',
   'settings.providers.toolSearchUnsupported': 'Only Anthropic Messages providers support Tool Search here. OpenAI proxy formats keep full tool schemas available.',
+  'settings.providers.disableExperimentalBetas': 'Disable experimental beta headers',
+  'settings.providers.disableExperimentalBetasDesc': 'Sets CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1 for this provider to avoid beta API shapes that third-party gateways may reject.',
 
   // Settings > Permissions
   'settings.permissions.title': 'Permission Mode',
@@ -981,6 +983,11 @@ export const en = {
   'settings.general.outputStyleSourceLocal': 'Local project style',
   'settings.general.outputStyleSourcePolicy': 'Managed style',
   'settings.general.outputStyleSourcePlugin': 'Plugin style',
+  'settings.general.defaultPermissionTitle': 'Default Session Permissions',
+  'settings.general.defaultPermissionDescription': 'Choose the permission mode applied when a new desktop chat session starts.',
+  'settings.general.defaultPermissionLabel': 'New session permission mode',
+  'settings.general.defaultPermissionHint': 'Individual sessions can still be changed from the chat permission selector.',
+  'settings.general.defaultPermissionScope': 'Each new session workspace',
   'settings.general.effortTitle': 'Effort Level',
   'settings.general.effortDescription': 'Controls how much computation the model uses.',
   'settings.general.effort.low': 'Low',
@@ -1083,6 +1090,8 @@ export const en = {
   'settings.general.h5AccessProxyNote': 'Currently using a reverse proxy URL. Phones reach the desktop through the public domain / tunnel you configured. Make sure your proxy is still up.',
   'settings.general.networkTitle': 'Network',
   'settings.general.networkDescription': 'Controls provider API requests made by desktop sessions.',
+  'settings.general.networkProxyModeDirect': 'Direct connection',
+  'settings.general.networkProxyModeDirectDescription': 'Do not use inherited proxy settings for provider API requests.',
   'settings.general.networkProxyModeSystem': 'System proxy',
   'settings.general.networkProxyModeSystemDescription': 'Use proxy settings inherited by the app process.',
   'settings.general.networkProxyModeManual': 'Manual proxy',
@@ -1914,7 +1923,6 @@ export const en = {
   'chat.retry.retrying': 'retrying now…',
   'chat.fallback.title': 'Network hiccup — switched to non-streaming mode',
   'chat.fallback.detail': 'response arrives in one piece, this can take a while',
-  'chat.turnCompleted': 'Completed in {duration}',
 
   // ─── Tabs ──────────────────────────────────────
   'tabs.close': 'Close',

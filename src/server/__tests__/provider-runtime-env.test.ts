@@ -87,6 +87,7 @@ describe('providerRuntimeEnv', () => {
         ANTHROPIC_BASE_URL: 'http://127.0.0.1:3456/proxy',
         ANTHROPIC_API_KEY: 'proxy-managed',
         ANTHROPIC_MODEL: 'deepseek-v4-pro',
+        CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: '1',
         DISABLE_AUTOUPDATER: '1',
       },
       tmpDir,
@@ -103,6 +104,7 @@ describe('providerRuntimeEnv', () => {
       ANTHROPIC_DEFAULT_OPUS_MODEL: 'gpt-5.5',
       DISABLE_AUTOUPDATER: '1',
     })
+    expect(env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS).toBeUndefined()
   })
 
   test('honors disabled tool search for native Anthropic providers', async () => {
@@ -131,6 +133,34 @@ describe('providerRuntimeEnv', () => {
     const env = readActiveProviderManagedEnv(tmpDir)
 
     expect(env.ENABLE_TOOL_SEARCH).toBe('false')
+  })
+
+  test('honors disabled experimental betas for active providers', async () => {
+    await writeJson(path.join(tmpDir, 'cc-haha', 'providers.json'), {
+      activeId: 'provider-1',
+      providers: [
+        {
+          id: 'provider-1',
+          presetId: 'custom',
+          name: 'Experimental Betas Off',
+          apiKey: 'sk-active',
+          authStrategy: 'auth_token',
+          baseUrl: 'https://api.example.com/anthropic',
+          apiFormat: 'anthropic',
+          disableExperimentalBetas: true,
+          models: {
+            main: 'active-main',
+            haiku: 'active-main',
+            sonnet: 'active-main',
+            opus: 'active-main',
+          },
+        },
+      ],
+    })
+
+    const env = readActiveProviderManagedEnv(tmpDir)
+
+    expect(env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS).toBe('1')
   })
 
   test('keeps providers readable when stored tool search values are stringly typed', async () => {
