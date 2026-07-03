@@ -23,6 +23,19 @@ describe('settingsStore locale defaults', () => {
   })
 })
 
+describe('settingsStore WebFetch preflight defaults', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    window.localStorage.clear()
+  })
+
+  it('keeps WebFetch preflight enabled unless the user opts out', async () => {
+    const { useSettingsStore } = await import('./settingsStore')
+
+    expect(useSettingsStore.getState().skipWebFetchPreflight).toBe(false)
+  })
+})
+
 describe('settingsStore UI zoom', () => {
   beforeEach(() => {
     vi.resetModules()

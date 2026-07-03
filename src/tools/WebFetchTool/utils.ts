@@ -84,10 +84,11 @@ export function shouldSkipWebFetchPreflight(
     return settings.skipWebFetchPreflight
   }
 
-  // Desktop sessions often route through third-party providers or constrained
-  // corporate networks where Anthropic's domain preflight fails despite the
-  // actual target URL being reachable through the configured provider path.
-  return Boolean(process.env.CC_HAHA_DESKTOP_SERVER_URL)
+  // Keep the default aligned with the CLI: when the machine has no external
+  // network, the short domain preflight fails before WebFetch waits on the
+  // target host's longer fetch timeout. Enterprise users who can reach target
+  // URLs but cannot reach Anthropic's preflight endpoint can still opt in.
+  return false
 }
 
 export function clearWebFetchCache(): void {
