@@ -1175,7 +1175,7 @@ export const en = {
   'repoLaunch.checkedOutWarning': 'Selected branch is already checked out in another worktree. Direct launch may be blocked by Git; use "Isolated worktree" to avoid changing directories.',
 
   // ─── Chat Input ──────────────────────────────────────
-  'chat.placeholder': 'Ask Claude to edit, debug or explain...',
+  'chat.placeholder': 'Ask Dicode to edit, debug or explain...',
   'chat.placeholderMissing': 'This session points to a missing workspace. Create a new session or pick another project.',
   'chat.addFiles': 'Add files or photos',
   'chat.dropFilesTitle': 'Drop files here',

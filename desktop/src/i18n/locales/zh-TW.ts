@@ -1177,7 +1177,7 @@ export const zh: Record<TranslationKey, string> = {
   'repoLaunch.checkedOutWarning': '選中的分支已在其他工作樹中檢出。直接啟動可能會被 Git 阻止；使用“獨立工作樹”可以避免切換當前目錄。',
 
   // ─── Chat Input ──────────────────────────────────────
-  'chat.placeholder': '讓 Claude 編輯、除錯或解釋程式碼...',
+  'chat.placeholder': '讓 Dicode 編輯、除錯或解釋程式碼...',
   'chat.placeholderMissing': '此會話指向的工作目錄缺失。請新建會話或選擇其他專案。',
   'chat.addFiles': '新增檔案或圖片',
   'chat.dropFilesTitle': '鬆手新增檔案',

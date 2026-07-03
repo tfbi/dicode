@@ -1177,7 +1177,7 @@ export const jp: Record<TranslationKey, string> = {
   'repoLaunch.checkedOutWarning': '選択したブランチは別の worktree で既にチェックアウトされています。直接起動は Git によってブロックされる場合があります。ディレクトリの変更を避けるには「独立した worktree」を使用してください。',
 
   // ─── Chat Input ──────────────────────────────────────
-  'chat.placeholder': '編集、デバッグ、説明を Claude に依頼...',
+  'chat.placeholder': '編集、デバッグ、説明を Dicode に依頼...',
   'chat.placeholderMissing': 'このセッションは見つからないワークスペースを指しています。新しいセッションを作成するか、別のプロジェクトを選択してください。',
   'chat.addFiles': 'ファイルまたは写真を追加',
   'chat.dropFilesTitle': 'ここにファイルをドロップ',

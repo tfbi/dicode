@@ -1177,7 +1177,7 @@ export const kr: Record<TranslationKey, string> = {
   'repoLaunch.checkedOutWarning': '선택한 브랜치는 다른 worktree에서 이미 체크아웃되어 있습니다. Git에 의해 직접 시작이 차단될 수 있습니다. 디렉터리 변경을 피하려면 "독립 worktree"를 사용하세요.',
 
   // ─── Chat Input ──────────────────────────────────────
-  'chat.placeholder': '편집, 디버그 또는 설명을 Claude에 요청...',
+  'chat.placeholder': '편집, 디버그 또는 설명을 Dicode에 요청...',
   'chat.placeholderMissing': '이 세션은 없는 작업 공간을 가리킵니다. 새 세션을 만들거나 다른 프로젝트를 선택하세요.',
   'chat.addFiles': '파일 또는 사진 추가',
   'chat.dropFilesTitle': '여기에 파일을 드롭하세요',
