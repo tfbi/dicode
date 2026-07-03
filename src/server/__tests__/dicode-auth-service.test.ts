@@ -168,12 +168,13 @@ describe('DicodeAuthService', () => {
   })
 
   test('exchangeCodeAndState stores token response from IAM backend', async () => {
-    service.setFetchFn(async (input) => {
+    service.setFetchFn(async (input, init) => {
       expect(input.toString()).toBe(
         'https://iam.example.com/admin-api/auth/just-auth-login?code=code-1&state=state-1',
       )
+      expect(new Headers(init?.headers).get('tenant-id')).toBe('1')
       return new Response(JSON.stringify({
-        code: 0,
+        code: 200,
         data: {
           accessToken: 'access-token',
           refreshToken: 'refresh-token',
@@ -193,7 +194,7 @@ describe('DicodeAuthService', () => {
     expect((await service.loadTokens())?.userId).toBe('E12345')
   })
 
-  test('exchangeCodeAndState rejects non-zero IAM response code', async () => {
+  test('exchangeCodeAndState rejects non-200 IAM response code', async () => {
     service.setFetchFn(async () => new Response(JSON.stringify({
       code: 401,
       data: {},

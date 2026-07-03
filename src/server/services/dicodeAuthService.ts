@@ -73,6 +73,8 @@ type DicodeConfig = {
 
 const DEFAULT_TOKEN_PATH = '/admin-api/auth/just-auth-login'
 const DICODE_CONFIG_PATH_ARG = '--dicode-config-path'
+const IAM_SUCCESS_CODE = 200
+const IAM_TENANT_ID = '1'
 
 type DicodeAuthServiceOptions = {
   configPath?: string | null
@@ -147,12 +149,16 @@ export class DicodeAuthService {
 
   async exchangeCodeAndState(input: TokenExchangeInput): Promise<DicodeAuthTokens> {
     const url = this.buildTokenExchangeUrl(input)
-    const res = await this.fetchFn(url)
+    const res = await this.fetchFn(url, {
+      headers: {
+        'tenant-id': IAM_TENANT_ID,
+      },
+    })
     if (!res.ok) {
       throw new Error(`IAM login failed (${res.status}): ${await res.text()}`)
     }
     const body = await readIamTokenResponse(res)
-    if (body.code !== 0) {
+    if (body.code !== IAM_SUCCESS_CODE) {
       throw new Error(`IAM login failed: ${body.message ?? body.msg ?? body.code}`)
     }
     const data = body.data

@@ -61,19 +61,22 @@ describe('Dicode auth API', () => {
   })
 
   test('POST /api/dicode-auth/exchange stores IAM token response', async () => {
-    dicodeAuthService.setFetchFn(async () => new Response(JSON.stringify({
-      code: 0,
-      data: {
-        accessToken: 'access-token',
-        refreshToken: 'refresh-token',
-        expiresTime: Date.now() + 3600_000,
-        userId: 'E12345',
-        userName: 'zhangsan',
-        nickName: '张三',
-        email: 'zhangsan@example.com',
-        deptId: 42,
-      },
-    }), { status: 200 }))
+    dicodeAuthService.setFetchFn(async (_input, init) => {
+      expect(new Headers(init?.headers).get('tenant-id')).toBe('1')
+      return new Response(JSON.stringify({
+        code: 200,
+        data: {
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+          expiresTime: Date.now() + 3600_000,
+          userId: 'E12345',
+          userName: 'zhangsan',
+          nickName: '张三',
+          email: 'zhangsan@example.com',
+          deptId: 42,
+        },
+      }), { status: 200 })
+    })
     const { req, url, segments } = buildReq(
       'POST',
       '/api/dicode-auth/exchange?code=code-1&state=state-1',
