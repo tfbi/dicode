@@ -74,6 +74,8 @@ describe('Electron sidecar manager', () => {
       '0.0.0.0',
       '--port',
       '49321',
+      '--dicode-config-path',
+      path.join('/app/desktop', 'resources', 'dicode', 'config.json'),
     ])
     expect(plan.env.CLAUDE_H5_AUTO_PUBLIC_URL).toBe('1')
     expect(plan.env.CLAUDE_H5_DIST_DIR).toBe(path.join('/app/desktop', 'dist'))
@@ -90,6 +92,7 @@ describe('Electron sidecar manager', () => {
 
     expect(plan.command).toContain('/Applications/App.app/Contents/Resources/app.asar.unpacked/src-tauri/binaries/claude-sidecar-')
     expect(plan.args).toContain('/Applications/App.app/Contents/Resources/app.asar')
+    expect(plan.args).toContain('/Applications/App.app/Contents/Resources/app.asar.unpacked/resources/dicode/config.json')
     expect(plan.env.CLAUDE_H5_DIST_DIR).toBe('/Applications/App.app/Contents/Resources/app.asar.unpacked/dist')
   })
 

@@ -8,7 +8,7 @@ import { useUIStore } from '../stores/uiStore'
 import { useUpdateStore } from '../stores/updateStore'
 import type { SavedProvider } from '../types/provider'
 import type { ProviderPreset } from '../types/providerPreset'
-import type { AppMode, ChatSendBehavior, PermissionMode, ThemeMode, UpdateProxySettings } from '../types/settings'
+import type { AppMode, ChatSendBehavior, PermissionMode, ThemeMode } from '../types/settings'
 import { browserHost } from '../lib/desktopHost/browserHost'
 
 const MOCK_DELETE_PROVIDER = vi.fn()
@@ -382,6 +382,16 @@ describe('Settings > General tab', () => {
     unmount()
     render(<Settings />)
 
+    expect(screen.getByLabelText('Skip WebFetch domain preflight')).toBeInTheDocument()
+  })
+
+  it('hides IM adapter settings and redirects stale adapter tab requests to General', () => {
+    useUIStore.setState({ pendingSettingsTab: 'adapters' })
+
+    render(<Settings />)
+
+    expect(screen.queryByText('IM Adapters')).not.toBeInTheDocument()
+    expect(screen.queryByText('Adapter Settings Mock')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Skip WebFetch domain preflight')).toBeInTheDocument()
   })
 
@@ -2133,34 +2143,21 @@ describe('Settings > About tab', () => {
     useUIStore.setState({ activeSettingsTab: 'providers', pendingSettingsTab: 'about' })
     useSettingsStore.setState({
       locale: 'en',
-      updateProxy: { mode: 'system', url: '' },
-      setUpdateProxy: vi.fn().mockImplementation(async (next: UpdateProxySettings) => {
-        useSettingsStore.setState({ updateProxy: next })
-      }),
-    })
-    useUpdateStore.setState({
-      status: 'available',
-      availableVersion: '0.1.5',
-      releaseNotes: '# Claude Code Haha v0.1.5\n\n- Fixed updater rendering\n- Added markdown support',
-      progressPercent: 0,
-      downloadedBytes: 0,
-      totalBytes: null,
-      error: null,
-      checkedAt: null,
-      shouldPrompt: true,
-      initialize: vi.fn().mockResolvedValue(undefined),
-      checkForUpdates: vi.fn().mockResolvedValue(null),
-      installUpdate: vi.fn().mockResolvedValue(undefined),
-      dismissPrompt: vi.fn(),
     })
   })
 
-  it('renders release notes with markdown formatting', async () => {
+  it('renders only the Dicode product identity, version, and learning disclaimer', async () => {
     render(<Settings />)
 
-    expect(await screen.findByRole('heading', { name: 'Claude Code Haha v0.1.5' })).toBeInTheDocument()
-    expect(screen.getByText('Fixed updater rendering')).toBeInTheDocument()
-    expect(screen.getByText('Added markdown support')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Dicode' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Dicode' })).toHaveAttribute('src', '/dicode-logo.svg')
+    expect(screen.getByText('Version 0.3.2')).toBeInTheDocument()
+    expect(screen.getByText('本软件仅供学习交流使用，请勿用于任何商业或非法用途。')).toBeInTheDocument()
+    expect(screen.queryByText('GitHub Repository')).not.toBeInTheDocument()
+    expect(screen.queryByText('App Updates')).not.toBeInTheDocument()
+    expect(screen.queryByText('Author')).not.toBeInTheDocument()
+    expect(screen.queryByText('Social Media')).not.toBeInTheDocument()
+    expect(screen.queryByText('Report an Issue')).not.toBeInTheDocument()
   })
 
   it('does not show a fake fallback app version when desktop version IPC fails', async () => {
@@ -2176,101 +2173,10 @@ describe('Settings > About tab', () => {
         getVersion: vi.fn().mockRejectedValue(new Error('version IPC failed')),
       },
     }
-    useUpdateStore.setState({
-      status: 'up-to-date',
-      availableVersion: null,
-      releaseNotes: null,
-      progressPercent: 0,
-      downloadedBytes: 0,
-      totalBytes: null,
-      error: null,
-      checkedAt: Date.now(),
-      shouldPrompt: false,
-      initialize: vi.fn().mockResolvedValue(undefined),
-      checkForUpdates: vi.fn().mockResolvedValue(null),
-      installUpdate: vi.fn().mockResolvedValue(undefined),
-      dismissPrompt: vi.fn(),
-    })
 
     render(<Settings />)
 
-    expect(await screen.findByText('Unknown')).toBeInTheDocument()
+    expect(await screen.findByText((_, node) => node?.textContent === 'Version Unknown')).toBeInTheDocument()
     expect(screen.queryByText('0.1.0')).not.toBeInTheDocument()
-  })
-
-  it('shows downloaded bytes instead of a fake zero percent when total size is unknown', async () => {
-    useUpdateStore.setState({
-      status: 'downloading',
-      availableVersion: '0.1.5',
-      releaseNotes: '# Claude Code Haha v0.1.5',
-      progressPercent: 0,
-      downloadedBytes: 1536,
-      totalBytes: null,
-      error: null,
-      checkedAt: null,
-      shouldPrompt: true,
-      initialize: vi.fn().mockResolvedValue(undefined),
-      checkForUpdates: vi.fn().mockResolvedValue(null),
-      installUpdate: vi.fn().mockResolvedValue(undefined),
-      dismissPrompt: vi.fn(),
-    })
-
-    render(<Settings />)
-
-    expect(await screen.findByText('Downloading update... 1.5 KB downloaded')).toBeInTheDocument()
-    expect(screen.queryByText('Downloading update... 0%')).not.toBeInTheDocument()
-  })
-
-  it('saves a manual update proxy from the advanced update controls', async () => {
-    render(<Settings />)
-
-    fireEvent.click(screen.getByRole('button', { name: /Advanced update proxy/i }))
-    expect(screen.getByRole('button', { name: /System proxy/i })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByText('This only affects app update checks and downloads.')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /Manual proxy/i }))
-    const proxyInput = screen.getByLabelText('Proxy URL')
-    const saveButton = screen.getByRole('button', { name: 'Save' })
-
-    expect(screen.getByText('Enter a proxy URL.')).toBeInTheDocument()
-    expect(saveButton).toBeDisabled()
-
-    fireEvent.change(proxyInput, { target: { value: 'socks5://127.0.0.1:7890' } })
-    expect(screen.getByText('Enter an HTTP or HTTPS proxy URL.')).toBeInTheDocument()
-    expect(saveButton).toBeDisabled()
-
-    fireEvent.change(proxyInput, { target: { value: '  http://127.0.0.1:7890  ' } })
-    expect(screen.getByText('HTTP and HTTPS proxy URLs are supported, for example http://127.0.0.1:7890.')).toBeInTheDocument()
-
-    await act(async () => {
-      fireEvent.click(saveButton)
-    })
-
-    expect(useSettingsStore.getState().setUpdateProxy).toHaveBeenCalledWith({
-      mode: 'manual',
-      url: 'http://127.0.0.1:7890',
-    })
-  })
-
-  it('can switch update proxy settings back to system mode', async () => {
-    useSettingsStore.setState({
-      updateProxy: { mode: 'manual', url: 'http://127.0.0.1:7890' },
-    })
-    render(<Settings />)
-
-    fireEvent.click(screen.getByRole('button', { name: /Advanced update proxy/i }))
-    expect(screen.getByRole('button', { name: /Manual proxy/i })).toHaveAttribute('aria-pressed', 'true')
-
-    fireEvent.click(screen.getByRole('button', { name: /System proxy/i }))
-    const saveButton = screen.getByRole('button', { name: 'Save' })
-
-    await act(async () => {
-      fireEvent.click(saveButton)
-    })
-
-    expect(useSettingsStore.getState().setUpdateProxy).toHaveBeenCalledWith({
-      mode: 'system',
-      url: 'http://127.0.0.1:7890',
-    })
   })
 })

@@ -29,6 +29,8 @@ vi.mock('../../i18n', () => ({
       'sidebar.newSession': 'New Session',
       'sidebar.scheduled': 'Scheduled',
       'sidebar.settings': 'Settings',
+      'sidebar.signOut': 'Sign out',
+      'sidebar.signOutFailed': 'Could not sign out.',
       'sidebar.searchPlaceholder': 'Search sessions',
       'sidebar.noSessions': 'No sessions',
       'sidebar.noMatching': 'No matching sessions',
@@ -109,6 +111,7 @@ vi.mock('../../i18n', () => ({
 
 import { Sidebar } from './Sidebar'
 import { useChatStore } from '../../stores/chatStore'
+import { useDicodeAuthStore } from '../../stores/dicodeAuthStore'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useTabStore } from '../../stores/tabStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -252,6 +255,11 @@ describe('Sidebar', () => {
       sidebarOpen: true,
       addToast,
     } as Partial<ReturnType<typeof useUIStore.getState>>)
+    useDicodeAuthStore.setState({
+      status: null,
+      isLoading: false,
+      error: null,
+    })
   })
 
   afterEach(() => {
@@ -285,6 +293,71 @@ describe('Sidebar', () => {
     expect(useTabStore.getState().activeTabId).toBe('session-new-1')
     expect(screen.getByRole('complementary')).not.toHaveAttribute('data-desktop-drag-region')
     expect(screen.getByTestId('sidebar-title-region')).toHaveAttribute('data-desktop-drag-region')
+  })
+
+  it('shows the logged in dicode user in the sidebar dock', () => {
+    useDicodeAuthStore.setState({
+      status: {
+        loggedIn: true,
+        required: true,
+        configured: true,
+        hostUrl: 'https://iam.example.com',
+        accessToken: 'token-for-test',
+        expiresTime: Date.now() + 3600_000,
+        user: {
+          userId: '10086',
+          userName: 'zhangsan',
+          nickName: '张三',
+          email: 'zhangsan@example.com',
+        },
+      },
+    })
+
+    render(<Sidebar />)
+
+    expect(screen.getByText('Dicode')).toBeInTheDocument()
+    expect(screen.getByTitle('Dicode')).toHaveAttribute('href', 'https://github.com/tfbi/dicode')
+    expect(screen.getByTestId('sidebar-dicode-user')).toHaveTextContent('张三')
+    expect(screen.getByTestId('sidebar-dicode-user')).toHaveTextContent('zhangsan@example.com')
+  })
+
+  it('opens settings and signs out from the dicode user menu', async () => {
+    const logout = vi.fn().mockResolvedValue(undefined)
+    useDicodeAuthStore.setState({
+      status: {
+        loggedIn: true,
+        required: true,
+        configured: true,
+        hostUrl: 'https://iam.example.com',
+        accessToken: 'token-for-test',
+        expiresTime: Date.now() + 3600_000,
+        user: {
+          userId: '10086',
+          userName: 'zhangsan',
+          nickName: '张三',
+          email: 'zhangsan@example.com',
+        },
+      },
+      logout,
+    })
+
+    render(<Sidebar />)
+
+    fireEvent.click(screen.getByTestId('sidebar-dicode-user'))
+
+    expect(screen.getByTestId('sidebar-account-menu')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Settings' }))
+
+    expect(useTabStore.getState().activeTabId).toBe('__settings__')
+
+    fireEvent.click(screen.getByTestId('sidebar-dicode-user'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }))
+    })
+
+    expect(logout).toHaveBeenCalledTimes(1)
   })
 
   it('groups sessions by project and expands overflow rows', () => {

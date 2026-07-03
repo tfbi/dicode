@@ -9,6 +9,7 @@ import {
 import { type Locale, useTranslation } from '../i18n'
 import { useSettingsStore } from '../stores/settingsStore'
 import { publicAssetPath } from '../lib/publicAsset'
+import { useDicodeAuthStore } from '../stores/dicodeAuthStore'
 
 type HeatmapDay = {
   date: string
@@ -69,12 +70,19 @@ const DATE_LOCALES: Record<Locale, string> = {
   kr: 'ko-KR',
 }
 const DEFAULT_PROFILE: DesktopProfilePreferences = {
-  displayName: 'cc-haha',
-  subtitle: 'github.com/NanmiCoder/cc-haha',
+  displayName: 'Dicode',
+  subtitle: 'https://github.com/tfbi/dicode',
   avatarFile: null,
   avatarUpdatedAt: null,
 }
-const DEFAULT_AVATAR_SRC = publicAssetPath('app-icon.png')
+const DEFAULT_AVATAR_SRC = publicAssetPath('dicode-logo.svg')
+
+function defaultProfile(hostUrl?: string): DesktopProfilePreferences {
+  return {
+    ...DEFAULT_PROFILE,
+    ...(hostUrl ? { subtitle: hostUrl } : {}),
+  }
+}
 
 function localDateKey(date: Date) {
   const year = date.getFullYear()
@@ -217,8 +225,11 @@ function buildPluginAndSkillRankItems(stats: ActivityStatsResponse | null) {
     .slice(0, 6)
 }
 
-function withProfileDefaults(profile: Partial<DesktopProfilePreferences> | null | undefined): DesktopProfilePreferences {
-  return { ...DEFAULT_PROFILE, ...profile }
+function withProfileDefaults(
+  profile: Partial<DesktopProfilePreferences> | null | undefined,
+  hostUrl?: string,
+): DesktopProfilePreferences {
+  return { ...defaultProfile(hostUrl), ...profile }
 }
 
 function getProfileSubtitleHref(subtitle: string) {
@@ -431,12 +442,13 @@ function getHeatmapCellDetail(day: HeatmapDay, t: ReturnType<typeof useTranslati
 export function ActivitySettings() {
   const t = useTranslation()
   const locale = useSettingsStore((state) => state.locale)
+  const dicodeHostUrl = useDicodeAuthStore((state) => state.status?.hostUrl)
   const heatmapMeasureRef = useRef<HTMLDivElement | null>(null)
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
   const [stats, setStats] = useState<ActivityStatsResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [profile, setProfile] = useState<DesktopProfilePreferences>(DEFAULT_PROFILE)
+  const [profile, setProfile] = useState<DesktopProfilePreferences>(() => defaultProfile(dicodeHostUrl))
   const [profileError, setProfileError] = useState<string | null>(null)
   const [profileStatus, setProfileStatus] = useState<string | null>(null)
   const [isProfileLoading, setIsProfileLoading] = useState(true)
@@ -480,7 +492,7 @@ export function ActivitySettings() {
     desktopUiPreferencesApi.getPreferences()
       .then((result) => {
         if (cancelled) return
-        const nextProfile = withProfileDefaults(result.preferences.profile)
+        const nextProfile = withProfileDefaults(result.preferences.profile, dicodeHostUrl)
         setProfile(nextProfile)
         setDraftDisplayName(nextProfile.displayName)
         setDraftSubtitle(nextProfile.subtitle)
@@ -496,7 +508,7 @@ export function ActivitySettings() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [dicodeHostUrl])
 
   useEffect(() => {
     if (isLoading || error) return
@@ -647,7 +659,7 @@ export function ActivitySettings() {
         displayName: draftDisplayName,
         subtitle: draftSubtitle,
       })
-      const nextProfile = withProfileDefaults(result.preferences.profile)
+      const nextProfile = withProfileDefaults(result.preferences.profile, dicodeHostUrl)
       setProfile(nextProfile)
       setDraftDisplayName(nextProfile.displayName)
       setDraftSubtitle(nextProfile.subtitle)
@@ -669,7 +681,7 @@ export function ActivitySettings() {
     setProfileStatus(null)
     try {
       const result = await desktopUiPreferencesApi.uploadProfileAvatar(file)
-      const nextProfile = withProfileDefaults(result.preferences.profile)
+      const nextProfile = withProfileDefaults(result.preferences.profile, dicodeHostUrl)
       setProfile(nextProfile)
       setDraftDisplayName(nextProfile.displayName)
       setDraftSubtitle(nextProfile.subtitle)
@@ -687,7 +699,7 @@ export function ActivitySettings() {
     setProfileStatus(null)
     try {
       const result = await desktopUiPreferencesApi.deleteProfileAvatar()
-      setProfile(withProfileDefaults(result.preferences.profile))
+      setProfile(withProfileDefaults(result.preferences.profile, dicodeHostUrl))
       setProfileStatus(t('settings.activity.profileSaved'))
     } catch (err) {
       setProfileError(err instanceof Error ? err.message : t('settings.activity.profileSaveFailed'))

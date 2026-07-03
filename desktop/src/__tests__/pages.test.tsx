@@ -1295,7 +1295,8 @@ describe('AppShell layout renders chrome', () => {
     expect(container.innerHTML).toContain('New session')
     expect(container.innerHTML).toContain('Scheduled')
     expect(container.innerHTML).toContain('Search chats')
-    expect(container.innerHTML).toContain('Settings')
+    fireEvent.click(screen.getByTestId('sidebar-dicode-user'))
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeInTheDocument()
   })
 })
 

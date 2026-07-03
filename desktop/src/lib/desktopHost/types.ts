@@ -141,6 +141,11 @@ export type PortableDirDetection = {
   hasData: boolean
 }
 
+export type DicodeAuthCode = {
+  code: string
+  state: string
+}
+
 export type DesktopHost = {
   kind: DesktopHostKind
   isDesktop: boolean
@@ -231,6 +236,9 @@ export type DesktopHost = {
   }
   zoom: {
     set(level: number): Promise<void>
+  }
+  dicodeAuth: {
+    open(loginUrl: string): Promise<DicodeAuthCode>
   }
 }
 

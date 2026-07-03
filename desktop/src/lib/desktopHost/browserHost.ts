@@ -260,4 +260,9 @@ export const browserHost: DesktopHost = {
       unsupported('Native app zoom')
     },
   },
+  dicodeAuth: {
+    async open() {
+      unsupported('Dicode IAM login')
+    },
+  },
 }

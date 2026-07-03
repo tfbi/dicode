@@ -490,8 +490,8 @@ export function ActiveSession() {
                 ) : (
                   <>
                     <img
-                      src={publicAssetPath('app-icon.png')}
-                      alt="Claude Code Haha"
+                      src={publicAssetPath('dicode-logo.svg')}
+                      alt="Dicode"
                       className={compactEmptyHero ? 'mb-4 h-16 w-16' : 'mb-6 h-24 w-24'}
                     />
                     <h1 className={`${compactEmptyHero ? 'mb-1 text-2xl' : 'mb-2 text-3xl'} font-extrabold tracking-tight text-[var(--color-text-primary)]`} style={{ fontFamily: 'var(--font-headline)' }}>

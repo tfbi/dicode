@@ -1,0 +1,8 @@
+{
+  "iam": {
+    "enabled": true,
+    "loginUrl": "https://it.byd.com/home",
+    "host": "https://it.byd.com",
+    "tokenPath": "/admin-api/auth/just-auth-login"
+  }
+}

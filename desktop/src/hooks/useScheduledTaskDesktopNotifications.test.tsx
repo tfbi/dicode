@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { useScheduledTaskDesktopNotifications } from './useScheduledTaskDesktopNotifications'
+import { useDicodeAuthStore } from '../stores/dicodeAuthStore'
 
 const { listMock, getRecentRunsMock, notifyDesktopMock, serverReadyMock } = vi.hoisted(() => ({
   listMock: vi.fn(),
@@ -39,6 +40,39 @@ describe('useScheduledTaskDesktopNotifications', () => {
     notifyDesktopMock.mockResolvedValue(true)
     serverReadyMock.mockReset()
     serverReadyMock.mockResolvedValue(undefined)
+    useDicodeAuthStore.setState({
+      status: {
+        loggedIn: true,
+        required: true,
+        configured: true,
+        accessToken: 'test-token',
+        expiresTime: Date.now() + 3600_000,
+        user: { userId: '10086' },
+      },
+      isLoading: false,
+      error: null,
+    })
+  })
+
+  it('does not poll while the dicode user is logged out', async () => {
+    useDicodeAuthStore.setState({
+      status: {
+        loggedIn: false,
+        required: true,
+        configured: true,
+      },
+      isLoading: false,
+      error: null,
+    })
+    listMock.mockResolvedValue({ tasks: [] })
+    getRecentRunsMock.mockResolvedValue({ runs: [] })
+
+    render(<Harness />)
+
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(serverReadyMock).not.toHaveBeenCalled()
+    expect(listMock).not.toHaveBeenCalled()
+    expect(getRecentRunsMock).not.toHaveBeenCalled()
   })
 
   it('does not poll until the desktop server is ready', async () => {

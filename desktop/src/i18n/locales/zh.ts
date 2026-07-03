@@ -26,6 +26,8 @@ export const zh: Record<TranslationKey, string> = {
   'sidebar.scheduled': '定时任务',
   'sidebar.terminal': '终端',
   'sidebar.settings': '设置',
+  'sidebar.signOut': '退出登录',
+  'sidebar.signOutFailed': '退出登录失败。',
   'sidebar.searchPlaceholder': '搜索会话...',
   'sidebar.noSessions': '暂无会话',
   'sidebar.noMatching': '没有匹配的会话',
@@ -1144,7 +1146,7 @@ export const zh: Record<TranslationKey, string> = {
 
   // ─── Empty Session ──────────────────────────────────────
   'empty.title': '新建会话',
-  'empty.subtitle': '开始一个新的编码会话。Claude 已准备好帮你构建、调试和架构你的项目。',
+  'empty.subtitle': '开始一个新的编码会话。Dicode 已准备好帮你构建、调试和架构你的项目。',
   'empty.placeholder': '随便问点什么...',
   'empty.addFiles': '添加文件或图片',
   'empty.slashCommands': '斜杠命令',

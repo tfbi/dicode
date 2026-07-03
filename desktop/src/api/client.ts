@@ -11,6 +11,13 @@ let baseUrl = DEFAULT_BASE_URL
 let authToken: string | null = null
 const DIAGNOSTICS_PATH = '/api/diagnostics/events'
 const DEFAULT_REQUEST_TIMEOUT_MS = 120_000
+const DICODE_AUTH_REQUIRED_MESSAGES = new Set([
+  'Dicode IAM login required',
+  'Invalid or expired Dicode IAM token',
+])
+
+type DicodeAuthRequiredListener = (error: ApiError) => void
+const dicodeAuthRequiredListeners = new Set<DicodeAuthRequiredListener>()
 
 function getErrorMessage(status: number, body: unknown) {
   if (body && typeof body === 'object' && 'message' in body && typeof body.message === 'string') {
@@ -50,6 +57,13 @@ export function getAuthToken() {
   return authToken
 }
 
+export function onDicodeAuthRequired(listener: DicodeAuthRequiredListener): () => void {
+  dicodeAuthRequiredListeners.add(listener)
+  return () => {
+    dicodeAuthRequiredListeners.delete(listener)
+  }
+}
+
 export function getDefaultBaseUrl() {
   return DEFAULT_BASE_URL
 }
@@ -65,6 +79,18 @@ export class ApiError extends Error {
   ) {
     super(getErrorMessage(status, body))
     this.name = 'ApiError'
+  }
+}
+
+export function isDicodeAuthRequiredError(error: unknown): error is ApiError {
+  return error instanceof ApiError &&
+    error.status === 401 &&
+    DICODE_AUTH_REQUIRED_MESSAGES.has(error.message)
+}
+
+function notifyDicodeAuthRequired(error: ApiError) {
+  for (const listener of dicodeAuthRequiredListeners) {
+    listener(error)
   }
 }
 
@@ -86,7 +112,11 @@ async function request<T>(method: string, path: string, body?: unknown, options?
 
     if (!res.ok) {
       const errorBody = await res.json().catch(() => res.text())
-      throw new ApiError(res.status, errorBody)
+      const apiError = new ApiError(res.status, errorBody)
+      if (isDicodeAuthRequiredError(apiError)) {
+        notifyDicodeAuthRequired(apiError)
+      }
+      throw apiError
     }
 
     if (res.status === 204) return undefined as T

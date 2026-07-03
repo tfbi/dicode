@@ -1,0 +1,87 @@
+import { useEffect, useState, type ReactNode } from 'react'
+import { onDicodeAuthRequired, setAuthToken } from '../../api/client'
+import { initializeDesktopServerUrl } from '../../lib/desktopRuntime'
+import { useDicodeAuthStore } from '../../stores/dicodeAuthStore'
+import { DicodeLoginView } from './DicodeLoginView'
+
+type DicodeAuthGateProps = {
+  children: ReactNode
+}
+
+function isLoginRequiredMessage(error: unknown): boolean {
+  return error instanceof Error && error.message === 'Dicode IAM login required'
+}
+
+export function DicodeAuthGate({ children }: DicodeAuthGateProps) {
+  const status = useDicodeAuthStore((s) => s.status)
+  const isLoading = useDicodeAuthStore((s) => s.isLoading)
+  const error = useDicodeAuthStore((s) => s.error)
+  const fetchStatus = useDicodeAuthStore((s) => s.fetchStatus)
+  const login = useDicodeAuthStore((s) => s.login)
+  const requireLogin = useDicodeAuthStore((s) => s.requireLogin)
+  const [ready, setReady] = useState(false)
+  const [startupError, setStartupError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function bootstrapAuth() {
+      try {
+        await initializeDesktopServerUrl()
+        const nextStatus = await fetchStatus()
+        if (nextStatus.loggedIn) {
+          setAuthToken(nextStatus.accessToken)
+        }
+        if (!cancelled) {
+          setReady(true)
+        }
+      } catch (err) {
+        setAuthToken(null)
+        if (!cancelled) {
+          setStartupError(isLoginRequiredMessage(err) ? null : err instanceof Error ? err.message : String(err))
+          setReady(true)
+        }
+      }
+    }
+    void bootstrapAuth()
+    return () => {
+      cancelled = true
+    }
+  }, [fetchStatus])
+
+  useEffect(() => {
+    return onDicodeAuthRequired(() => {
+      void fetchStatus()
+        .then((nextStatus) => {
+          if (!nextStatus.loggedIn) {
+            requireLogin()
+          }
+        })
+        .catch(() => {
+          requireLogin()
+        })
+    })
+  }, [fetchStatus, requireLogin])
+
+  if (!ready) {
+    return (
+      <div className="app-shell-viewport flex items-center justify-center bg-[var(--color-surface)] text-[var(--color-text-secondary)]">
+        Checking login status
+      </div>
+    )
+  }
+
+  if (status?.loggedIn || status?.required === false) {
+    return <>{children}</>
+  }
+
+  return (
+    <DicodeLoginView
+      loading={isLoading}
+      configured={status?.configured ?? false}
+      error={error ?? startupError}
+      onLogin={() => {
+        void login().catch(() => undefined)
+      }}
+    />
+  )
+}

@@ -118,6 +118,10 @@ if [[ "${SIGN_BUILD:-0}" != "1" ]]; then
   # unsigned build has no Developer ID credentials, so explicitly disable
   # notarization here to keep `electron:package` working without an Apple account.
   BUILDER_ARGS+=(-c.mac.notarize=false)
+  # Still apply an ad-hoc signature for local/internal test builds. Without a
+  # sealed resource signature, macOS can report the app bundle as damaged even
+  # though no Developer ID certificate is being used.
+  BUILDER_ARGS+=(-c.mac.identity=-)
 fi
 if [[ "$#" -gt 0 ]]; then
   BUILDER_ARGS+=("$@")

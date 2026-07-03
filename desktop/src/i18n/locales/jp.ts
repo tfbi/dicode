@@ -26,6 +26,8 @@ export const jp: Record<TranslationKey, string> = {
   'sidebar.scheduled': 'スケジュール',
   'sidebar.terminal': 'ターミナル',
   'sidebar.settings': '設定',
+  'sidebar.signOut': 'サインアウト',
+  'sidebar.signOutFailed': 'サインアウトできませんでした。',
   'sidebar.searchPlaceholder': 'セッションを検索...',
   'sidebar.noSessions': 'セッションがありません',
   'sidebar.noMatching': '一致するセッションがありません',
@@ -1144,7 +1146,7 @@ export const jp: Record<TranslationKey, string> = {
 
   // ─── Empty Session ──────────────────────────────────────
   'empty.title': '新しいセッション',
-  'empty.subtitle': '新しいコーディングセッションを開始します。Claude は、プロジェクトの構築、デバッグ、設計をお手伝いする準備ができています。',
+  'empty.subtitle': '新しいコーディングセッションを開始します。Dicode は、プロジェクトの構築、デバッグ、設計をお手伝いする準備ができています。',
   'empty.placeholder': '何でも質問してください...',
   'empty.addFiles': 'ファイルまたは写真を追加',
   'empty.slashCommands': 'スラッシュコマンド',

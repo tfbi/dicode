@@ -5,13 +5,17 @@ import { randomBytes } from 'node:crypto'
 import { ApiError } from '../middleware/errorHandler.js'
 import { readRecoverableJsonFile } from './recoverableJsonFile.js'
 import { ensurePersistentStorageUpgraded } from './persistentStorageMigrations.js'
+import { dicodeAuthService } from './dicodeAuthService.js'
 
 const CURRENT_DESKTOP_UI_PREFERENCES_SCHEMA_VERSION = 2
 const MAX_PROJECT_PREFERENCE_ENTRIES = 2_000
 const MAX_PROFILE_DISPLAY_NAME_LENGTH = 80
 const MAX_PROFILE_SUBTITLE_LENGTH = 160
 const MAX_PROFILE_AVATAR_BYTES = 2_000_000
-const DEFAULT_PROFILE_SUBTITLE = 'github.com/NanmiCoder/cc-haha'
+const DEFAULT_PROFILE_DISPLAY_NAME = 'Dicode'
+const LEGACY_DEFAULT_PROFILE_DISPLAY_NAME = 'cc-haha'
+const LEGACY_DEFAULT_PROFILE_SUBTITLE = 'github.com/NanmiCoder/cc-haha'
+const FALLBACK_PROFILE_SUBTITLE = 'https://github.com/tfbi/dicode'
 
 const AVATAR_CONTENT_TYPES = {
   'image/png': { extension: 'png', mediaType: 'image/png' },
@@ -54,18 +58,24 @@ const DEFAULT_SIDEBAR_PROJECT_PREFERENCES: SidebarProjectPreferences = {
   projectSortBy: 'updatedAt',
 }
 
-const DEFAULT_PROFILE_PREFERENCES: DesktopProfilePreferences = {
-  displayName: 'cc-haha',
-  subtitle: DEFAULT_PROFILE_SUBTITLE,
-  avatarFile: null,
-  avatarUpdatedAt: null,
+function getDefaultProfileSubtitle(): string {
+  return dicodeAuthService.getHostUrl() ?? FALLBACK_PROFILE_SUBTITLE
+}
+
+function defaultProfilePreferences(): DesktopProfilePreferences {
+  return {
+    displayName: DEFAULT_PROFILE_DISPLAY_NAME,
+    subtitle: getDefaultProfileSubtitle(),
+    avatarFile: null,
+    avatarUpdatedAt: null,
+  }
 }
 
 function defaultPreferences(): DesktopUiPreferences {
   return {
     schemaVersion: CURRENT_DESKTOP_UI_PREFERENCES_SCHEMA_VERSION,
     sidebar: { ...DEFAULT_SIDEBAR_PROJECT_PREFERENCES },
-    profile: { ...DEFAULT_PROFILE_PREFERENCES },
+    profile: defaultProfilePreferences(),
   }
 }
 
@@ -100,16 +110,20 @@ export function normalizeSidebarProjectPreferences(value: unknown): SidebarProje
 }
 
 function normalizeProfileDisplayName(value: unknown): string {
-  if (typeof value !== 'string') return DEFAULT_PROFILE_PREFERENCES.displayName
+  if (typeof value !== 'string') return DEFAULT_PROFILE_DISPLAY_NAME
   const trimmed = value.trim().replace(/\s+/g, ' ')
-  if (trimmed.length === 0) return DEFAULT_PROFILE_PREFERENCES.displayName
+  if (trimmed.length === 0 || trimmed === LEGACY_DEFAULT_PROFILE_DISPLAY_NAME) {
+    return DEFAULT_PROFILE_DISPLAY_NAME
+  }
   return trimmed.slice(0, MAX_PROFILE_DISPLAY_NAME_LENGTH)
 }
 
 function normalizeProfileSubtitle(value: unknown): string {
-  if (typeof value !== 'string') return DEFAULT_PROFILE_PREFERENCES.subtitle
+  if (typeof value !== 'string') return getDefaultProfileSubtitle()
   const trimmed = value.trim().replace(/\s+/g, ' ')
-  if (trimmed.length === 0) return DEFAULT_PROFILE_PREFERENCES.subtitle
+  if (trimmed.length === 0 || trimmed === LEGACY_DEFAULT_PROFILE_SUBTITLE) {
+    return getDefaultProfileSubtitle()
+  }
   return trimmed.slice(0, MAX_PROFILE_SUBTITLE_LENGTH)
 }
 
@@ -121,7 +135,7 @@ function normalizeAvatarFile(value: unknown): string | null {
 
 function normalizeProfilePreferences(value: unknown): DesktopProfilePreferences {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return { ...DEFAULT_PROFILE_PREFERENCES }
+    return defaultProfilePreferences()
   }
 
   const record = value as Record<string, unknown>

@@ -21,6 +21,10 @@ import {
 } from './sidecarManager'
 import { readDesktopTerminalConfig, resolveDesktopTerminalShell } from './terminal'
 
+export function shouldStartDicodeAdapters(): boolean {
+  return false
+}
+
 type ServerRuntimeOptions = {
   desktopRoot: string
   appRoot?: string
@@ -65,6 +69,7 @@ export class ElectronServerRuntime {
   }
 
   async restartAdaptersSidecars(): Promise<void> {
+    if (!shouldStartDicodeAdapters()) return
     this.stopAdaptersSidecars()
     const serverUrl = await this.getServerUrl()
     await this.startAdaptersSidecars(serverUrl)
@@ -110,6 +115,7 @@ export class ElectronServerRuntime {
   }
 
   private async startAdaptersSidecars(serverUrl: string): Promise<void> {
+    if (!shouldStartDicodeAdapters()) return
     const env = await this.resolveSidecarBaseEnv()
     for (const [label, flag] of [
       ['feishu', '--feishu'],

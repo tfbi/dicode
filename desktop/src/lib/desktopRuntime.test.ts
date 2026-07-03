@@ -148,7 +148,7 @@ describe('desktopRuntime browser H5 bootstrap', () => {
 
     expect(window.desktopHost.runtime.getServerUrl).toHaveBeenCalledTimes(1)
     expect(clientMocks.setBaseUrl).toHaveBeenLastCalledWith(serverUrl)
-    expect(clientMocks.setAuthToken).toHaveBeenLastCalledWith(null)
+    expect(clientMocks.setAuthToken).not.toHaveBeenCalled()
     expect(globalThis.fetch).toHaveBeenCalledWith(`${serverUrl}/health`, {
       cache: 'no-store',
     })

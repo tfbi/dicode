@@ -199,7 +199,7 @@ describe('ActivitySettings', () => {
     expect(getStatsMock).toHaveBeenCalledWith('all')
 
     expect(screen.getByText('cc-haha')).toBeInTheDocument()
-    expect(screen.getByAltText('cc-haha avatar')).toHaveAttribute('src', '/app-icon.png')
+    expect(screen.getByAltText('cc-haha avatar')).toHaveAttribute('src', '/dicode-logo.svg')
     expect(screen.getByAltText('cc-haha avatar')).toHaveClass('scale-[1.28]')
     expect(screen.getByRole('link', { name: 'github.com/NanmiCoder/cc-haha' })).toHaveAttribute(
       'href',
@@ -364,7 +364,7 @@ describe('ActivitySettings', () => {
     expect(avatar).toHaveAttribute('src', '/api/desktop-ui/preferences/profile/avatar?mock=1')
     expect(avatar).not.toHaveClass('scale-[1.28]')
     fireEvent.error(avatar)
-    expect(avatar).toHaveAttribute('src', '/app-icon.png')
+    expect(avatar).toHaveAttribute('src', '/dicode-logo.svg')
     expect(avatar).toHaveClass('scale-[1.28]')
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
@@ -396,7 +396,7 @@ describe('ActivitySettings', () => {
     await flushActivityLoad()
 
     expect(deleteProfileAvatarMock).toHaveBeenCalled()
-    expect(screen.getByAltText('cc-haha avatar')).toHaveAttribute('src', '/app-icon.png')
+    expect(screen.getByAltText('cc-haha avatar')).toHaveAttribute('src', '/dicode-logo.svg')
   })
 
   it('shows localized duration details and the empty usage state', async () => {
