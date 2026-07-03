@@ -17,6 +17,20 @@ describe('resolveSidecarInvocation', () => {
     })
   })
 
+  it('does not expose the removed IM adapters sidecar mode', () => {
+    expect(
+      resolveSidecarInvocation(
+        ['adapters', '--telegram'],
+        '/tmp/claude-sidecar',
+        null,
+      ),
+    ).toEqual({
+      mode: null,
+      restArgs: ['adapters', '--telegram'],
+      defaultAppRoot: null,
+    })
+  })
+
   it('defaults claude-haha invocations to cli mode', () => {
     expect(
       resolveSidecarInvocation(
