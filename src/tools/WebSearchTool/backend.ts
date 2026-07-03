@@ -177,7 +177,9 @@ export function makeWebSearchUnavailableOutput(
 
 function canUseAnthropicNativeWebSearch(model: string | undefined): boolean {
   const key = normalizeModelKey(model)
-  return isLikelyClaudeModel(model) && (!key || !unsupportedNativeModels.has(key))
+  const shouldTryNative =
+    isLikelyClaudeModel(model) || Boolean(process.env.CC_HAHA_DESKTOP_SERVER_URL)
+  return shouldTryNative && (!key || !unsupportedNativeModels.has(key))
 }
 
 function normalizeModelKey(model: string | undefined): string | null {

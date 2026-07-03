@@ -1,10 +1,15 @@
+import type { BetaContentBlock } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import { z } from 'zod/v4'
-import { buildTool, type ToolDef } from '../../Tool.js'
+import { queryModelWithStreaming } from '../../services/api/claude.js'
+import { buildTool, type ToolDef, type ToolUseContext } from '../../Tool.js'
 import type { PermissionUpdate } from '../../types/permissions.js'
 import { formatFileSize } from '../../utils/format.js'
 import { lazySchema } from '../../utils/lazySchema.js'
+import { logError } from '../../utils/log.js'
+import { createUserMessage } from '../../utils/messages.js'
 import type { PermissionDecision } from '../../utils/permissions/PermissionResult.js'
 import { getRuleByContentsForTool } from '../../utils/permissions/permissions.js'
+import { asSystemPrompt } from '../../utils/systemPromptType.js'
 import { isPreapprovedHost } from './preapproved.js'
 import { DESCRIPTION, WEB_FETCH_TOOL_NAME } from './prompt.js'
 import {
@@ -46,6 +51,8 @@ const outputSchema = lazySchema(() =>
 type OutputSchema = ReturnType<typeof outputSchema>
 
 export type Output = z.infer<OutputSchema>
+
+const unsupportedNativeWebFetchModels = new Set<string>()
 
 function webFetchToolInputToPermissionRuleContent(input: {
   [k: string]: unknown
@@ -92,6 +99,7 @@ export const WebFetchTool = buildTool({
   get outputSchema(): OutputSchema {
     return outputSchema()
   },
+  isEnabled: () => true,
   isConcurrencySafe() {
     return true
   },
@@ -205,13 +213,25 @@ ${DESCRIPTION}`
   renderToolUseMessage,
   renderToolUseProgressMessage,
   renderToolResultMessage,
-  async call(
-    { url, prompt },
-    { abortController, options: { isNonInteractiveSession } },
-  ) {
+  async call(input, context) {
+    const { url, prompt } = input
     const start = Date.now()
+    const model = context.options.mainLoopModel
 
-    const response = await getURLMarkdownContent(url, abortController)
+    if (!isNativeWebFetchMarkedUnsupported(model)) {
+      try {
+        return await callNativeWebFetch(input, context, start)
+      } catch (error) {
+        if (!shouldFallbackFromNativeWebFetchError(error)) {
+          throw error
+        }
+
+        markNativeWebFetchUnsupported(model)
+        logError(error instanceof Error ? error : new Error(String(error)))
+      }
+    }
+
+    const response = await getURLMarkdownContent(url, context.abortController)
 
     // Check if we got a redirect to a different host
     if ('type' in response && response.type === 'redirect') {
@@ -271,8 +291,8 @@ To complete your request, I need to fetch content from the redirected URL. Pleas
       result = await applyPromptToMarkdown(
         prompt,
         content,
-        abortController.signal,
-        isNonInteractiveSession,
+        context.abortController.signal,
+        context.options.isNonInteractiveSession,
         isPreapproved,
       )
     }
@@ -305,6 +325,128 @@ To complete your request, I need to fetch content from the redirected URL. Pleas
     }
   },
 } satisfies ToolDef<InputSchema, Output>)
+
+async function callNativeWebFetch(
+  input: z.infer<InputSchema>,
+  context: ToolUseContext,
+  start: number,
+) {
+  const { url, prompt } = input
+  const appState = context.getAppState()
+  const userMessage = createUserMessage({
+    content: `Fetch this URL with the web_fetch tool, then answer the user's request using the fetched content.
+
+URL: ${url}
+
+User request:
+${prompt}`,
+  })
+
+  const queryStream = queryModelWithStreaming({
+    messages: [userMessage],
+    systemPrompt: asSystemPrompt([
+      'You are an assistant for fetching and analyzing one web URL.',
+    ]),
+    thinkingConfig: context.options.thinkingConfig,
+    tools: [],
+    signal: context.abortController.signal,
+    options: {
+      getToolPermissionContext: async () => appState.toolPermissionContext,
+      model: context.options.mainLoopModel,
+      toolChoice: { type: 'tool', name: 'web_fetch' },
+      isNonInteractiveSession: context.options.isNonInteractiveSession,
+      hasAppendSystemPrompt: !!context.options.appendSystemPrompt,
+      extraToolSchemas: [{ name: 'web_fetch', type: 'web_fetch_20260309' }],
+      querySource: 'web_fetch_tool',
+      agents: context.options.agentDefinitions.activeAgents,
+      mcpTools: [],
+      agentId: context.agentId,
+      effortValue: appState.effortValue,
+    },
+  })
+
+  const allContentBlocks: BetaContentBlock[] = []
+  for await (const event of queryStream) {
+    if (event.type === 'assistant') {
+      allContentBlocks.push(...event.message.content)
+    }
+  }
+
+  const result = extractNativeWebFetchText(allContentBlocks)
+  if (!result) {
+    throw new Error('Native web_fetch returned no usable content')
+  }
+
+  return {
+    data: {
+      bytes: Buffer.byteLength(result),
+      code: 200,
+      codeText: 'OK',
+      result,
+      durationMs: Date.now() - start,
+      url,
+    },
+  }
+}
+
+function extractNativeWebFetchText(contentBlocks: BetaContentBlock[]): string {
+  const textParts: string[] = []
+
+  for (const block of contentBlocks) {
+    if (block.type === 'text') {
+      textParts.push(block.text)
+      continue
+    }
+
+    if (block.type !== 'web_fetch_tool_result') {
+      continue
+    }
+
+    const content = block.content
+    if (typeof content === 'string') {
+      textParts.push(content)
+    } else if (Array.isArray(content)) {
+      for (const item of content) {
+        if (typeof item === 'string') {
+          textParts.push(item)
+        } else if (
+          item &&
+          typeof item === 'object' &&
+          'text' in item &&
+          typeof item.text === 'string'
+        ) {
+          textParts.push(item.text)
+        }
+      }
+    }
+  }
+
+  return textParts.join('\n\n').trim()
+}
+
+export function shouldFallbackFromNativeWebFetchError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /web_fetch|server tool|tool schema|input_schema|extra input|unsupported|not supported|unknown tool/i.test(
+    message,
+  )
+}
+
+function markNativeWebFetchUnsupported(model: string | undefined): void {
+  const key = normalizeModelKey(model)
+  if (key) {
+    unsupportedNativeWebFetchModels.add(key)
+  }
+}
+
+function isNativeWebFetchMarkedUnsupported(model: string | undefined): boolean {
+  const key = normalizeModelKey(model)
+  return Boolean(key && unsupportedNativeWebFetchModels.has(key))
+}
+
+function normalizeModelKey(model: string | undefined): string | null {
+  const key = model?.trim().toLowerCase()
+  return key || null
+}
 
 function buildSuggestions(ruleContent: string): PermissionUpdate[] {
   return [

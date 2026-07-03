@@ -80,12 +80,12 @@ const DOMAIN_CHECK_CACHE = new LRUCache<string, true>({
 export function shouldSkipWebFetchPreflight(
   settings: { skipWebFetchPreflight?: boolean } = getSettings_DEPRECATED(),
 ): boolean {
-  if (process.env.CC_HAHA_DESKTOP_SERVER_URL) {
-    return true
-  }
-
   if (settings.skipWebFetchPreflight !== undefined) {
     return settings.skipWebFetchPreflight
+  }
+
+  if (process.env.CC_HAHA_DESKTOP_SERVER_URL) {
+    return true
   }
 
   return false

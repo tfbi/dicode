@@ -22,12 +22,12 @@ describe('shouldSkipWebFetchPreflight', () => {
     ).toBe(true)
   })
 
-  test('forces preflight skipping for desktop sessions even when settings are stale', () => {
+  test('respects explicit false from settings even in desktop sessions', () => {
     process.env.CC_HAHA_DESKTOP_SERVER_URL = 'http://127.0.0.1:3456'
 
     expect(
       shouldSkipWebFetchPreflight({ skipWebFetchPreflight: false }),
-    ).toBe(true)
+    ).toBe(false)
   })
 
   test('defaults to enabled for desktop sessions', () => {

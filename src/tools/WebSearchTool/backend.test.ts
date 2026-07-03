@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import {
   isLikelyClaudeModel,
   isWebSearchEnabledForModel,
@@ -7,6 +7,20 @@ import {
 } from './backend.js'
 
 describe('WebSearch backend resolver', () => {
+  const originalDesktopServerUrl = process.env.CC_HAHA_DESKTOP_SERVER_URL
+
+  beforeEach(() => {
+    delete process.env.CC_HAHA_DESKTOP_SERVER_URL
+  })
+
+  afterEach(() => {
+    if (originalDesktopServerUrl === undefined) {
+      delete process.env.CC_HAHA_DESKTOP_SERVER_URL
+    } else {
+      process.env.CC_HAHA_DESKTOP_SERVER_URL = originalDesktopServerUrl
+    }
+  })
+
   test('detects Claude models by model name instead of provider URL', () => {
     expect(isLikelyClaudeModel('claude-sonnet-4-5')).toBe(true)
     expect(isLikelyClaudeModel('anthropic/claude-3-7-sonnet')).toBe(true)
@@ -39,6 +53,20 @@ describe('WebSearch backend resolver', () => {
         braveApiKey: 'brave-key',
       }).provider,
     ).toBe('brave')
+  })
+
+  test('desktop sessions try native WebSearch for non-Claude models before external fallback', () => {
+    process.env.CC_HAHA_DESKTOP_SERVER_URL = 'http://127.0.0.1:3456'
+
+    expect(
+      resolveWebSearchProvider('deepseek-v4-pro', {
+        mode: 'auto',
+      }).provider,
+    ).toBe('anthropic')
+
+    expect(isWebSearchEnabledForModel('deepseek-v4-pro', { mode: 'auto' })).toBe(
+      true,
+    )
   })
 
   test('explicit provider modes require their API key', () => {
