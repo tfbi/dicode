@@ -32,7 +32,7 @@ describe('settingsStore WebFetch preflight defaults', () => {
   it('keeps WebFetch preflight enabled unless the user opts out', async () => {
     const { useSettingsStore } = await import('./settingsStore')
 
-    expect(useSettingsStore.getState().skipWebFetchPreflight).toBe(false)
+    expect(useSettingsStore.getState().skipWebFetchPreflight).toBe(true)
   })
 })
 

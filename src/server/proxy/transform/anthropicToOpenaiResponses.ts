@@ -72,6 +72,7 @@ export function anthropicToOpenaiResponses(
   if (body.tools && body.tools.length > 0) {
     result.tools = body.tools
       .filter((t) => t.name !== 'BatchTool')
+      .filter((t) => t.input_schema !== undefined)
       .map((t) => ({
         type: 'function',
         name: t.name,

@@ -124,6 +124,22 @@ describe('anthropicToOpenaiChat', () => {
     expect(result.tools![0].function.name).toBe('real_tool')
   })
 
+  test('does not convert Anthropic server-side tools to local OpenAI functions', () => {
+    const req: AnthropicRequest = {
+      model: 'gpt-4',
+      max_tokens: 100,
+      messages: [{ role: 'user', content: 'Hi' }],
+      tools: [
+        { name: 'web_fetch', type: 'web_fetch_20260309' },
+        { name: 'real_tool', input_schema: {} },
+      ],
+    }
+
+    const result = anthropicToOpenaiChat(req)
+    expect(result.tools).toHaveLength(1)
+    expect(result.tools![0].function.name).toBe('real_tool')
+  })
+
   test('tool_choice conversion', () => {
     const req: AnthropicRequest = {
       model: 'gpt-4',
@@ -507,6 +523,22 @@ describe('anthropicToOpenaiResponses', () => {
       description: 'Get weather',
       parameters: { type: 'object', properties: { city: { type: 'string' } } },
     })
+  })
+
+  test('does not convert Anthropic server-side tools to local Responses functions', () => {
+    const req: AnthropicRequest = {
+      model: 'gpt-4o',
+      max_tokens: 100,
+      messages: [{ role: 'user', content: 'Hi' }],
+      tools: [
+        { name: 'web_fetch', type: 'web_fetch_20260309' },
+        { name: 'get_weather', input_schema: {} },
+      ],
+    }
+
+    const result = anthropicToOpenaiResponses(req)
+    expect(result.tools).toHaveLength(1)
+    expect(result.tools![0].name).toBe('get_weather')
   })
 
   test('tool_use lifted to function_call', () => {

@@ -84,11 +84,7 @@ export function shouldSkipWebFetchPreflight(
     return settings.skipWebFetchPreflight
   }
 
-  // Keep the default aligned with the CLI: when the machine has no external
-  // network, the short domain preflight fails before WebFetch waits on the
-  // target host's longer fetch timeout. Enterprise users who can reach target
-  // URLs but cannot reach Anthropic's preflight endpoint can still opt in.
-  return false
+  return Boolean(process.env.CC_HAHA_DESKTOP_SERVER_URL)
 }
 
 export function clearWebFetchCache(): void {

@@ -34,6 +34,7 @@ import { AGENT_TOOL_NAME } from '../tools/AgentTool/constants.js'
 import type { AgentDefinition } from '../tools/AgentTool/loadAgentsDir.js'
 import { EXIT_PLAN_MODE_V2_TOOL_NAME } from '../tools/ExitPlanModeTool/constants.js'
 import { TASK_OUTPUT_TOOL_NAME } from '../tools/TaskOutputTool/constants.js'
+import { WEB_FETCH_TOOL_NAME } from '../tools/WebFetchTool/prompt.js'
 import type { Message } from '../types/message.js'
 import { isAgentSwarmsEnabled } from './agentSwarmsEnabled.js'
 import {
@@ -133,6 +134,15 @@ export async function toolToAPISchema(
     }
   },
 ): Promise<BetaToolUnion> {
+  if (tool.name === WEB_FETCH_TOOL_NAME) {
+    return {
+      name: 'web_fetch',
+      type: 'web_fetch_20260309',
+      ...(options.deferLoading && { defer_loading: true }),
+      ...(options.cacheControl && { cache_control: options.cacheControl }),
+    }
+  }
+
   // Session-stable base schema: name, description, input_schema, strict,
   // eager_input_streaming. These are computed once per session and cached to
   // prevent mid-session GrowthBook flips (tengu_tool_pear, tengu_fgts) or

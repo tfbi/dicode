@@ -184,7 +184,8 @@ export type AnthropicRequest = {
   tools?: Array<{
     name: string
     description?: string
-    input_schema: Record<string, unknown>
+    input_schema?: Record<string, unknown>
+    type?: string
     cache_control?: unknown
   }>
   tool_choice?: unknown

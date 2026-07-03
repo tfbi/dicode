@@ -1244,7 +1244,7 @@ function ProviderFormModal({ open, onClose, mode, provider, presets }: ProviderF
         applyDisableExperimentalBetasEnv(mergedEnv, disableExperimentalBetas)
         const merged = {
           ...settings,
-          skipWebFetchPreflight: settings.skipWebFetchPreflight ?? false,
+          skipWebFetchPreflight: settings.skipWebFetchPreflight ?? true,
           env: mergedEnv,
         }
         setSettingsJson(JSON.stringify(merged, null, 2))

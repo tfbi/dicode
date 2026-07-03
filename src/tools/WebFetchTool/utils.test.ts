@@ -30,10 +30,10 @@ describe('shouldSkipWebFetchPreflight', () => {
     ).toBe(false)
   })
 
-  test('defaults to disabled for desktop sessions', () => {
+  test('defaults to enabled for desktop sessions', () => {
     process.env.CC_HAHA_DESKTOP_SERVER_URL = 'http://127.0.0.1:3456'
 
-    expect(shouldSkipWebFetchPreflight({})).toBe(false)
+    expect(shouldSkipWebFetchPreflight({})).toBe(true)
   })
 
   test('defaults to disabled outside desktop sessions', () => {
