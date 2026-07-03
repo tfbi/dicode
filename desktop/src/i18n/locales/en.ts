@@ -1394,10 +1394,10 @@ export const en = {
   'streaming.working': 'Working',
 
   // ─── Permission Dialog ──────────────────────────────────────
-  'permission.allowEditFile': 'Allow Claude to {toolName} {fileName}?',
-  'permission.allowEditFileGeneric': 'Allow Claude to {toolName} this file?',
-  'permission.allowBash': 'Allow Claude to run this command?',
-  'permission.allowTool': 'Allow Claude to use {toolName}?',
+  'permission.allowEditFile': 'Allow Dicode to {toolName} {fileName}?',
+  'permission.allowEditFileGeneric': 'Allow Dicode to {toolName} this file?',
+  'permission.allowBash': 'Allow Dicode to run this command?',
+  'permission.allowTool': 'Allow Dicode to use {toolName}?',
   'permission.awaitingApproval': 'Awaiting approval',
   'permission.responded': 'Responded',
   'permission.allow': 'Allow',

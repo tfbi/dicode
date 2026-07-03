@@ -388,4 +388,55 @@ describe('chat blocks', () => {
     // fully render in jsdom, so we verify the DiffViewer wrapper is mounted
     expect(container.querySelector('[class*="rounded-[var(--radius-lg)]"]')).toBeTruthy()
   })
+
+  it('brands generic tool permission requests as Dicode', async () => {
+    useSettingsStore.setState({ locale: 'zh' })
+    useChatStore.setState({
+      sessions: {
+        'active-tab': {
+          messages: [],
+          chatState: 'permission_pending',
+          connectionState: 'connected',
+          streamingText: '',
+          streamingToolInput: '',
+          activeToolUseId: null,
+          activeToolName: null,
+          activeThinkingId: null,
+          pendingPermission: {
+            requestId: 'perm-webfetch',
+            toolName: 'WebFetch',
+            toolUseId: 'toolu-webfetch',
+            input: {
+              url: 'https://example.com',
+              prompt: 'summarize',
+            },
+            description: 'Fetch example.com',
+          },
+          pendingComputerUsePermission: null,
+          tokenUsage: { input_tokens: 0, output_tokens: 0 },
+          streamingResponseChars: 0,
+          elapsedSeconds: 0,
+          statusVerb: '',
+          slashCommands: [],
+          agentTaskNotifications: {},
+          elapsedTimer: null,
+        },
+      },
+    })
+
+    let container!: HTMLElement
+    await act(async () => {
+      container = render(
+        <PermissionDialog
+          requestId="perm-webfetch"
+          toolName="WebFetch"
+          input={{ url: 'https://example.com', prompt: 'summarize' }}
+        />,
+      ).container
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain('允许 Dicode 使用 WebFetch？')
+    expect(container.textContent).not.toContain('允许 Claude 使用 WebFetch？')
+  })
 })

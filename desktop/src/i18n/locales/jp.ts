@@ -1396,10 +1396,10 @@ export const jp: Record<TranslationKey, string> = {
   'streaming.working': '作業中',
 
   // ─── Permission Dialog ──────────────────────────────────────
-  'permission.allowEditFile': 'Claude が {fileName} を {toolName} することを許可しますか？',
-  'permission.allowEditFileGeneric': 'Claude がこのファイルを {toolName} することを許可しますか？',
-  'permission.allowBash': 'Claude がこのコマンドを実行することを許可しますか？',
-  'permission.allowTool': 'Claude が {toolName} を使用することを許可しますか？',
+  'permission.allowEditFile': 'Dicode が {fileName} を {toolName} することを許可しますか？',
+  'permission.allowEditFileGeneric': 'Dicode がこのファイルを {toolName} することを許可しますか？',
+  'permission.allowBash': 'Dicode がこのコマンドを実行することを許可しますか？',
+  'permission.allowTool': 'Dicode が {toolName} を使用することを許可しますか？',
   'permission.awaitingApproval': '承認待ち',
   'permission.responded': '応答済み',
   'permission.allow': '許可',
