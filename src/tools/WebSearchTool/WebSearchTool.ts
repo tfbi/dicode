@@ -18,6 +18,7 @@ import { createUserMessage } from '../../utils/messages.js'
 import { getMainLoopModel, getSmallFastModel } from '../../utils/model/model.js'
 import { jsonParse, jsonStringify } from '../../utils/slowOperations.js'
 import { asSystemPrompt } from '../../utils/systemPromptType.js'
+import { createNativeToolTimeout } from '../nativeToolTimeout.js'
 import {
   getApiKeyForProvider,
   getFallbackProvider,
@@ -86,6 +87,8 @@ export type Output = z.infer<OutputSchema>
 export type { WebSearchProgress } from '../../types/tools.js'
 
 import type { WebSearchProgress } from '../../types/tools.js'
+
+const NATIVE_WEB_SEARCH_TIMEOUT_MS = 45_000
 
 function makeToolSchema(input: Input): BetaWebSearchTool20250305 {
   return {
@@ -304,6 +307,9 @@ export const WebSearchTool = buildTool({
         startTime,
       )
     } catch (error) {
+      if (context.abortController.signal.aborted) {
+        throw error
+      }
       if (!shouldFallbackFromNativeError(error)) {
         throw error
       }
@@ -398,6 +404,11 @@ async function callAnthropicNativeWebSearch(
   )
 
   const appState = context.getAppState()
+  const nativeTimeout = createNativeToolTimeout(
+    context.abortController.signal,
+    'web_search',
+    NATIVE_WEB_SEARCH_TIMEOUT_MS,
+  )
   const queryStream = queryModelWithStreaming({
     messages: [userMessage],
     systemPrompt: asSystemPrompt([
@@ -407,7 +418,7 @@ async function callAnthropicNativeWebSearch(
       ? { type: 'disabled' as const }
       : context.options.thinkingConfig,
     tools: [],
-    signal: context.abortController.signal,
+    signal: nativeTimeout.signal,
     options: {
       getToolPermissionContext: async () => appState.toolPermissionContext,
       model: useHaiku ? getSmallFastModel() : context.options.mainLoopModel,
@@ -429,95 +440,114 @@ async function callAnthropicNativeWebSearch(
   let progressCounter = 0
   const toolUseQueries = new Map<string, string>()
 
-  for await (const event of queryStream) {
-    if (event.type === 'assistant') {
-      allContentBlocks.push(...event.message.content)
-      continue
-    }
+  try {
+    await Promise.race([
+      (async () => {
+        for await (const event of queryStream) {
+          if (event.type === 'assistant') {
+            allContentBlocks.push(...event.message.content)
+            continue
+          }
 
-    // Track tool use ID when server_tool_use starts
-    if (
-      event.type === 'stream_event' &&
-      event.event?.type === 'content_block_start'
-    ) {
-      const contentBlock = event.event.content_block
-      if (contentBlock && contentBlock.type === 'server_tool_use') {
-        currentToolUseId = contentBlock.id
-        currentToolUseJson = ''
-        // Note: The ServerToolUseBlock doesn't contain input.query
-        // The actual query comes through input_json_delta events
-        continue
-      }
-    }
+          // Track tool use ID when server_tool_use starts
+          if (
+            event.type === 'stream_event' &&
+            event.event?.type === 'content_block_start'
+          ) {
+            const contentBlock = event.event.content_block
+            if (contentBlock && contentBlock.type === 'server_tool_use') {
+              currentToolUseId = contentBlock.id
+              currentToolUseJson = ''
+              // Note: The ServerToolUseBlock doesn't contain input.query
+              // The actual query comes through input_json_delta events
+              continue
+            }
+          }
 
-    // Accumulate JSON for current tool use
-    if (
-      currentToolUseId &&
-      event.type === 'stream_event' &&
-      event.event?.type === 'content_block_delta'
-    ) {
-      const delta = event.event.delta
-      if (delta?.type === 'input_json_delta' && delta.partial_json) {
-        currentToolUseJson += delta.partial_json
+          // Accumulate JSON for current tool use
+          if (
+            currentToolUseId &&
+            event.type === 'stream_event' &&
+            event.event?.type === 'content_block_delta'
+          ) {
+            const delta = event.event.delta
+            if (delta?.type === 'input_json_delta' && delta.partial_json) {
+              currentToolUseJson += delta.partial_json
 
-        // Try to extract query from partial JSON for progress updates
-        try {
-          // Look for a complete query field
-          const queryMatch = currentToolUseJson.match(
-            /"query"\s*:\s*"((?:[^"\\]|\\.)*)"/,
-          )
-          if (queryMatch && queryMatch[1]) {
-            // The regex properly handles escaped characters
-            const parsedQuery = jsonParse('"' + queryMatch[1] + '"') as string
+              // Try to extract query from partial JSON for progress updates
+              try {
+                // Look for a complete query field
+                const queryMatch = currentToolUseJson.match(
+                  /"query"\s*:\s*"((?:[^"\\]|\\.)*)"/,
+                )
+                if (queryMatch && queryMatch[1]) {
+                  // The regex properly handles escaped characters
+                  const parsedQuery = jsonParse(
+                    '"' + queryMatch[1] + '"',
+                  ) as string
 
-            if (
-              !toolUseQueries.has(currentToolUseId) ||
-              toolUseQueries.get(currentToolUseId) !== parsedQuery
-            ) {
-              toolUseQueries.set(currentToolUseId, parsedQuery)
+                  if (
+                    !toolUseQueries.has(currentToolUseId) ||
+                    toolUseQueries.get(currentToolUseId) !== parsedQuery
+                  ) {
+                    toolUseQueries.set(currentToolUseId, parsedQuery)
+                    progressCounter++
+                    if (onProgress) {
+                      onProgress({
+                        toolUseID: `search-progress-${progressCounter}`,
+                        data: {
+                          type: 'query_update',
+                          query: parsedQuery,
+                        },
+                      })
+                    }
+                  }
+                }
+              } catch {
+                // Ignore parsing errors for partial JSON
+              }
+            }
+          }
+
+          // Yield progress when search results come in
+          if (
+            event.type === 'stream_event' &&
+            event.event?.type === 'content_block_start'
+          ) {
+            const contentBlock = event.event.content_block
+            if (contentBlock && contentBlock.type === 'web_search_tool_result') {
+              // Get the actual query that was used for this search
+              const toolUseId = contentBlock.tool_use_id
+              const actualQuery = toolUseQueries.get(toolUseId) || query
+              const content = contentBlock.content
+
               progressCounter++
               if (onProgress) {
                 onProgress({
-                  toolUseID: `search-progress-${progressCounter}`,
+                  toolUseID: toolUseId || `search-progress-${progressCounter}`,
                   data: {
-                    type: 'query_update',
-                    query: parsedQuery,
+                    type: 'search_results_received',
+                    resultCount: Array.isArray(content) ? content.length : 0,
+                    query: actualQuery,
                   },
                 })
               }
             }
           }
-        } catch {
-          // Ignore parsing errors for partial JSON
         }
-      }
-    }
-
-    // Yield progress when search results come in
+      })(),
+      nativeTimeout.timeout,
+    ])
+  } catch (error) {
     if (
-      event.type === 'stream_event' &&
-      event.event?.type === 'content_block_start'
+      nativeTimeout.signal.aborted &&
+      !context.abortController.signal.aborted
     ) {
-      const contentBlock = event.event.content_block
-      if (contentBlock && contentBlock.type === 'web_search_tool_result') {
-        // Get the actual query that was used for this search
-        const toolUseId = contentBlock.tool_use_id
-        const actualQuery = toolUseQueries.get(toolUseId) || query
-        const content = contentBlock.content
-
-        progressCounter++
-        if (onProgress) {
-          onProgress({
-            toolUseID: toolUseId || `search-progress-${progressCounter}`,
-            data: {
-              type: 'search_results_received',
-              resultCount: Array.isArray(content) ? content.length : 0,
-              query: actualQuery,
-            },
-          })
-        }
-      }
+      throw nativeTimeout.signal.reason
     }
+    throw error
+  } finally {
+    nativeTimeout.dispose()
   }
 
   // Process the final result

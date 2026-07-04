@@ -102,6 +102,11 @@ describe('WebSearch backend resolver', () => {
         new Error('422 Extra inputs are not permitted: web_search_20250305'),
       ),
     ).toBe(true)
+    expect(
+      shouldFallbackFromNativeError(
+        new Error('Native web_search timed out after 45000ms'),
+      ),
+    ).toBe(true)
     expect(shouldFallbackFromNativeError(new Error('network timeout'))).toBe(
       false,
     )

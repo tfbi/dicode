@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { EFFORT_BETA_HEADER } from '../../constants/betas.js'
 import { get3PModelCapabilityOverride } from '../../utils/model/modelSupportOverrides.js'
-import { configureEffortParams } from './claude.js'
+import { configureEffortParams, shouldFinishStreamAfterToolUseStop } from './claude.js'
 
 describe('configureEffortParams', () => {
   let originalBaseUrl: string | undefined
@@ -142,6 +142,60 @@ describe('configureEffortParams', () => {
     expect(outputConfig).toEqual({ effort: 'high' })
     expect(extraBodyParams).toEqual({})
     expect(betas).toContain(EFFORT_BETA_HEADER)
+  })
+})
+
+describe('shouldFinishStreamAfterToolUseStop', () => {
+  test('finishes after a completed tool_use block when stop_reason is tool_use', () => {
+    expect(
+      shouldFinishStreamAfterToolUseStop('tool_use', [
+        {
+          type: 'assistant',
+          uuid: 'assistant-1',
+          timestamp: '2026-07-04T00:00:00.000Z',
+          message: {
+            id: 'msg-1',
+            type: 'message',
+            role: 'assistant',
+            model: 'deepseek-v4-pro',
+            stop_reason: 'tool_use',
+            stop_sequence: null,
+            usage: { input_tokens: 1, output_tokens: 1 },
+            content: [
+              {
+                type: 'tool_use',
+                id: 'call_1',
+                name: 'WebSearch',
+                input: { query: 'github popular skills' },
+              },
+            ],
+          },
+        },
+      ] as any),
+    ).toBe(true)
+  })
+
+  test('keeps waiting when tool_use stop arrives without a completed tool block', () => {
+    expect(shouldFinishStreamAfterToolUseStop('tool_use', [])).toBe(false)
+    expect(
+      shouldFinishStreamAfterToolUseStop('end_turn', [
+        {
+          type: 'assistant',
+          uuid: 'assistant-1',
+          timestamp: '2026-07-04T00:00:00.000Z',
+          message: {
+            id: 'msg-1',
+            type: 'message',
+            role: 'assistant',
+            model: 'deepseek-v4-pro',
+            stop_reason: 'end_turn',
+            stop_sequence: null,
+            usage: { input_tokens: 1, output_tokens: 1 },
+            content: [{ type: 'text', text: 'done' }],
+          },
+        },
+      ] as any),
+    ).toBe(false)
   })
 })
 

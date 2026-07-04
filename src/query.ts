@@ -792,6 +792,14 @@ async function* queryLoop(
                 }
               }
             }
+            const isPartialToolUseSnapshot =
+              message.type === 'assistant' &&
+              message.message.stop_reason == null &&
+              (message.message.usage.output_tokens ?? 0) === 0 &&
+              message.message.content.some(
+                content => content.type === 'tool_use',
+              )
+
             // Withhold recoverable errors (prompt-too-long, max-output-tokens)
             // until we know whether recovery (collapse drain / reactive
             // compact / truncation retry) can succeed. Still pushed to
@@ -827,12 +835,24 @@ async function* queryLoop(
             if (isWithheldMaxOutputTokens(message)) {
               withheld = true
             }
+            if (isPartialToolUseSnapshot) {
+              withheld = true
+            }
             if (!withheld) {
               yield yieldMessage
             }
             if (message.type === 'assistant') {
+              if (isPartialToolUseSnapshot) {
+                continue
+              }
               assistantMessages.push(message)
 
+              // The SDK can emit include-partial-messages snapshots while the
+              // model is still revising a tool call. Those snapshots have
+              // stop_reason=null and output_tokens=0; executing their tool_use
+              // blocks creates orphan tool calls that never receive a final
+              // result. Keep the broader stop_reason fallback below for final
+              // provider messages that omit stop_reason but do report usage.
               const msgToolUseBlocks = message.message.content.filter(
                 content => content.type === 'tool_use',
               ) as ToolUseBlock[]

@@ -40,6 +40,11 @@ describe('WebFetchTool enablement', () => {
         new Error('unsupported server tool web_fetch'),
       ),
     ).toBe(true)
+    expect(
+      shouldFallbackFromNativeWebFetchError(
+        new Error('Native web_fetch timed out after 60000ms'),
+      ),
+    ).toBe(true)
     expect(shouldFallbackFromNativeWebFetchError(new Error('network timeout'))).toBe(
       false,
     )

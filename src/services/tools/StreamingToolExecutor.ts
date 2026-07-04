@@ -18,6 +18,14 @@ type MessageUpdate = {
 
 type ToolStatus = 'queued' | 'executing' | 'completed' | 'yielded'
 
+export function getStreamingToolExecutionTimeoutMs(
+  toolName: string,
+): number | null {
+  if (toolName === 'WebSearch') return 25_000
+  if (toolName === 'WebFetch') return 60_000
+  return null
+}
+
 type TrackedTool = {
   id: string
   block: ToolUseBlock
@@ -152,8 +160,13 @@ export class StreamingToolExecutor {
 
   private createSyntheticErrorMessage(
     toolUseId: string,
-    reason: 'sibling_error' | 'user_interrupted' | 'streaming_fallback',
+    reason:
+      | 'sibling_error'
+      | 'user_interrupted'
+      | 'streaming_fallback'
+      | 'tool_timeout',
     assistantMessage: AssistantMessage,
+    messageOverride?: string,
   ): Message {
     // For user interruptions (ESC to reject), use REJECT_MESSAGE so the UI shows
     // "User rejected edit" instead of "Error editing file"
@@ -183,6 +196,21 @@ export class StreamingToolExecutor {
           },
         ],
         toolUseResult: 'Streaming fallback - tool execution discarded',
+        sourceToolAssistantUUID: assistantMessage.uuid,
+      })
+    }
+    if (reason === 'tool_timeout') {
+      const msg = messageOverride ?? 'Tool execution timed out'
+      return createUserMessage({
+        content: [
+          {
+            type: 'tool_result',
+            content: `<tool_use_error>Error: ${msg}</tool_use_error>`,
+            is_error: true,
+            tool_use_id: toolUseId,
+          },
+        ],
+        toolUseResult: msg,
         sourceToolAssistantUUID: assistantMessage.uuid,
       })
     }
@@ -328,8 +356,14 @@ export class StreamingToolExecutor {
       // This prevents the tool from receiving a duplicate "sibling error"
       // message when it is the one that caused the error.
       let thisToolErrored = false
+      let timedOut = false
+      const timeoutMs = getStreamingToolExecutionTimeoutMs(tool.block.name)
 
-      for await (const update of generator) {
+      const consumeGenerator = async () => {
+        for await (const update of generator) {
+          if (timedOut) {
+            break
+          }
         // Check if we were aborted by a sibling tool error or user interruption.
         // Only add the synthetic error if THIS tool didn't produce the error.
         const abortReason = this.getAbortReason(tool)
@@ -379,6 +413,33 @@ export class StreamingToolExecutor {
         if (update.contextModifier) {
           contextModifiers.push(update.contextModifier.modifyContext)
         }
+      }
+      }
+
+      if (timeoutMs) {
+        let timeout: ReturnType<typeof setTimeout> | undefined
+        const timeoutPromise = new Promise<void>(resolve => {
+          timeout = setTimeout(() => {
+              timedOut = true
+              toolAbortController.abort('tool_timeout')
+              messages.push(
+                this.createSyntheticErrorMessage(
+                  tool.id,
+                  'tool_timeout',
+                  tool.assistantMessage,
+                  `${tool.block.name} timed out after ${timeoutMs}ms`,
+                ),
+              )
+              resolve()
+          }, timeoutMs)
+        })
+        await Promise.race([consumeGenerator(), timeoutPromise]).finally(() => {
+          if (timeout) {
+            clearTimeout(timeout)
+          }
+        })
+      } else {
+        await consumeGenerator()
       }
       tool.results = messages
       tool.contextModifiers = contextModifiers

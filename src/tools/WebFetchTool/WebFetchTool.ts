@@ -10,6 +10,7 @@ import { createUserMessage } from '../../utils/messages.js'
 import type { PermissionDecision } from '../../utils/permissions/PermissionResult.js'
 import { getRuleByContentsForTool } from '../../utils/permissions/permissions.js'
 import { asSystemPrompt } from '../../utils/systemPromptType.js'
+import { createNativeToolTimeout } from '../nativeToolTimeout.js'
 import { isPreapprovedHost } from './preapproved.js'
 import { DESCRIPTION, WEB_FETCH_TOOL_NAME } from './prompt.js'
 import {
@@ -53,6 +54,7 @@ type OutputSchema = ReturnType<typeof outputSchema>
 export type Output = z.infer<OutputSchema>
 
 const unsupportedNativeWebFetchModels = new Set<string>()
+const NATIVE_WEB_FETCH_TIMEOUT_MS = 60_000
 
 function webFetchToolInputToPermissionRuleContent(input: {
   [k: string]: unknown
@@ -222,6 +224,9 @@ ${DESCRIPTION}`
       try {
         return await callNativeWebFetch(input, context, start)
       } catch (error) {
+        if (context.abortController.signal.aborted) {
+          throw error
+        }
         if (!shouldFallbackFromNativeWebFetchError(error)) {
           throw error
         }
@@ -333,6 +338,11 @@ async function callNativeWebFetch(
 ) {
   const { url, prompt } = input
   const appState = context.getAppState()
+  const nativeTimeout = createNativeToolTimeout(
+    context.abortController.signal,
+    'web_fetch',
+    NATIVE_WEB_FETCH_TIMEOUT_MS,
+  )
   const userMessage = createUserMessage({
     content: `Fetch this URL with the web_fetch tool, then answer the user's request using the fetched content.
 
@@ -349,7 +359,7 @@ ${prompt}`,
     ]),
     thinkingConfig: context.options.thinkingConfig,
     tools: [],
-    signal: context.abortController.signal,
+    signal: nativeTimeout.signal,
     options: {
       getToolPermissionContext: async () => appState.toolPermissionContext,
       model: context.options.mainLoopModel,
@@ -366,10 +376,27 @@ ${prompt}`,
   })
 
   const allContentBlocks: BetaContentBlock[] = []
-  for await (const event of queryStream) {
-    if (event.type === 'assistant') {
-      allContentBlocks.push(...event.message.content)
+  try {
+    await Promise.race([
+      (async () => {
+        for await (const event of queryStream) {
+          if (event.type === 'assistant') {
+            allContentBlocks.push(...event.message.content)
+          }
+        }
+      })(),
+      nativeTimeout.timeout,
+    ])
+  } catch (error) {
+    if (
+      nativeTimeout.signal.aborted &&
+      !context.abortController.signal.aborted
+    ) {
+      throw nativeTimeout.signal.reason
     }
+    throw error
+  } finally {
+    nativeTimeout.dispose()
   }
 
   const result = extractNativeWebFetchText(allContentBlocks)

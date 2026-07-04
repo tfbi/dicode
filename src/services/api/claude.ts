@@ -1983,6 +1983,9 @@ async function* queryModel(
     );
     const STREAM_IDLE_TIMEOUT_MS =
       parseInt(process.env.CLAUDE_STREAM_IDLE_TIMEOUT_MS || "", 10) || 90_000;
+    const STREAM_TOOL_USE_IDLE_TIMEOUT_MS =
+      parseInt(process.env.CLAUDE_STREAM_TOOL_USE_IDLE_TIMEOUT_MS || "", 10) ||
+      25_000;
     // Budget for the FIRST chunk after response headers arrive (the prefill /
     // time-to-first-token phase). Slow local models and 3P gateways can spend
     // minutes prefilling a large context while emitting zero SSE bytes (#826);
@@ -2098,7 +2101,9 @@ async function* queryModel(
       const STALL_THRESHOLD_MS = 30_000; // 30 seconds
       let totalStallTime = 0;
       let stallCount = 0;
+      let deferredToolUseMessage: AssistantMessage | undefined;
 
+      let shouldFinishStreamAfterCurrentPart = false;
       for await (const part of stream) {
         resetStreamIdleTimer();
         const now = Date.now();
@@ -2376,7 +2381,11 @@ async function* queryModel(
               ...(advisorModel && { advisorModel }),
             };
             newMessages.push(m);
-            yield m;
+            if (contentBlock.type !== "tool_use") {
+              yield m;
+            } else {
+              deferredToolUseMessage = m;
+            }
             break;
           }
           case "message_delta": {
@@ -2409,11 +2418,29 @@ async function* queryModel(
             // the queued reference; direct mutation ensures the transcript
             // captures the final values.
             stopReason = part.delta.stop_reason;
+            if (
+              stopReason === "tool_use" &&
+              currentStreamIdleTimeoutMs !== STREAM_TOOL_USE_IDLE_TIMEOUT_MS
+            ) {
+              currentStreamIdleTimeoutMs = STREAM_TOOL_USE_IDLE_TIMEOUT_MS;
+              resetStreamIdleTimer();
+            }
 
             const lastMsg = newMessages.at(-1);
             if (lastMsg) {
               lastMsg.message.usage = usage;
               lastMsg.message.stop_reason = stopReason;
+            }
+            if (
+              stopReason === "tool_use" &&
+              lastMsg !== undefined &&
+              deferredToolUseMessage === lastMsg
+            ) {
+              yield lastMsg;
+              deferredToolUseMessage = undefined;
+            }
+            if (shouldFinishStreamAfterToolUseStop(stopReason, newMessages)) {
+              shouldFinishStreamAfterCurrentPart = true;
             }
 
             // Update cost
@@ -2470,6 +2497,20 @@ async function* queryModel(
           event: part,
           ...(part.type === "message_start" ? { ttftMs } : undefined),
         };
+        if (shouldFinishStreamAfterCurrentPart) {
+          logForDiagnosticsNoPII(
+            "info",
+            "cli_stream_tool_use_stop_without_message_stop",
+          );
+          logEvent("tengu_stream_tool_use_stop_without_message_stop", {
+            model:
+              options.model as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+            request_id: (streamRequestId ??
+              "unknown") as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+          });
+          releaseStreamResources();
+          break;
+        }
       }
       // Clear the idle timeout watchdog now that the stream loop has exited
       clearStreamIdleTimers();
@@ -3145,6 +3186,20 @@ export function cleanupStream(
   } catch {
     // Ignore - stream may already be closed
   }
+}
+
+export function shouldFinishStreamAfterToolUseStop(
+  stopReason: BetaStopReason | null,
+  messages: AssistantMessage[],
+): boolean {
+  if (stopReason !== "tool_use") {
+    return false;
+  }
+  const lastMessage = messages.at(-1);
+  return (
+    lastMessage?.message.content.some(block => block.type === "tool_use") ??
+    false
+  );
 }
 
 /**
